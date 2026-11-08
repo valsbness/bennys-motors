@@ -1,0 +1,17 @@
+{
+  "name": "bennys-motors-gestion",
+  "version": "4.0.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "build": "node build.mjs",
+    "build:logo": "node logo3d/tools/build.mjs",
+    "logo:assets": "node logo3d/tools/render-assets.mjs",
+    "logo:preview": "node logo3d/tools/preview.mjs",
+    "backgrounds": "node scripts/prepare-backgrounds.mjs",
+    "test": "node --test tests/core.test.mjs tests/database.test.mjs tests/staff.test.mjs",
+    "test:core": "node --test tests/core.test.mjs",
+    "test:browser": "node tests/browser.cjs",
+    "start": "node server.mjs"
+  }
+}
