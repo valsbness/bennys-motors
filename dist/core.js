@@ -1,4 +1,4 @@
-export const euro = value => '
+export const euro = value => String.fromCharCode(36)+new Intl.NumberFormat('en-US',{useGrouping:true,maximumFractionDigits:2,minimumFractionDigits:Math.abs(value-Math.round(value))>0.001?2:0}).format(value);
 export const round = n => Math.round((n + Number.EPSILON) * 100) / 100;
 export function calculate(items, discountPercent=0, commissionPercent=0) {
   const subtotal=round(items.reduce((n,i)=>n+i.price*i.qty,0));
