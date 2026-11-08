@@ -16,6 +16,8 @@ jobs:
         uses: actions/setup-node@v4
         with:
           node-version: 22
+      - name: Instalar dependencias
+        run: npm install
       - name: Ejecutar pruebas
         run: npm test
       - name: Compilar aplicación
