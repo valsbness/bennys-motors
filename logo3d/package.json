@@ -1,0 +1,15 @@
+{
+  "name": "bennys-logo3d",
+  "private": true,
+  "type": "module",
+  "description": "Fuente editable del emblema 3D de Benny’s. Solo desarrollo: la web publicada no necesita instalar nada.",
+  "devDependencies": {
+    "@fontsource/barlow-condensed": "5.2.8",
+    "@fontsource/source-serif-4": "5.2.9",
+    "@fontsource/yellowtail": "5.2.8",
+    "esbuild": "0.28.2",
+    "opentype.js": "2.0.0",
+    "polygon-clipping": "0.15.7",
+    "three": "0.186.1"
+  }
+}
