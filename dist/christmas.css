@@ -63,3 +63,144 @@ body.christmas-season .ambient-control:hover:not(:disabled){
   body.christmas-season .app-backdrop::after,
   body.christmas-season .access-backdrop::before{animation:none!important}
 }
+
+
+
+/* ── Decoración navideña completa: guirnaldas, pino, luces cálidas y nieve ── */
+body.christmas-season .brand{
+  position:relative;
+  padding:9px 5px 14px;
+  isolation:isolate;
+}
+body.christmas-season .brand::after{
+  content:"";
+  position:absolute;
+  z-index:2;
+  left:2%;right:2%;bottom:0;height:17px;
+  border-bottom:2px solid rgba(37,76,48,.95);
+  border-radius:0 0 55% 55%;
+  background:
+    radial-gradient(ellipse at 8% 20%,#f5dfad 0 2px,transparent 3px),
+    radial-gradient(ellipse at 28% 65%,#f5dfad 0 2px,transparent 3px),
+    radial-gradient(ellipse at 51% 85%,#f5dfad 0 2px,transparent 3px),
+    radial-gradient(ellipse at 73% 60%,#f5dfad 0 2px,transparent 3px),
+    radial-gradient(ellipse at 93% 18%,#f5dfad 0 2px,transparent 3px),
+    repeating-linear-gradient(112deg,transparent 0 5px,rgba(37,83,48,.95) 6px 8px,transparent 9px 13px);
+  filter:drop-shadow(0 2px 4px rgba(0,0,0,.65)) drop-shadow(0 0 5px rgba(255,220,166,.24));
+  pointer-events:none;
+}
+body.christmas-season .topbar{
+  position:sticky;
+  isolation:isolate;
+  border-top:3px solid rgba(43,77,49,.9);
+}
+body.christmas-season .topbar::before{
+  content:"";
+  position:absolute;
+  z-index:3;
+  left:4%;right:4%;top:-3px;height:13px;
+  border-bottom:2px solid rgba(43,77,49,.95);
+  border-radius:0 0 50% 50%;
+  background:
+    radial-gradient(circle at 9% 75%,#ffe7b8 0 2px,transparent 3.5px),
+    radial-gradient(circle at 27% 95%,#ffe7b8 0 2px,transparent 3.5px),
+    radial-gradient(circle at 50% 100%,#ffe7b8 0 2px,transparent 3.5px),
+    radial-gradient(circle at 73% 95%,#ffe7b8 0 2px,transparent 3.5px),
+    radial-gradient(circle at 91% 75%,#ffe7b8 0 2px,transparent 3.5px);
+  filter:drop-shadow(0 0 5px rgba(255,220,166,.52));
+  pointer-events:none;
+}
+body.christmas-season .garage-hero{
+  position:relative;
+  overflow:hidden;
+  isolation:isolate;
+}
+body.christmas-season .garage-hero::before{
+  content:"";
+  position:absolute;
+  z-index:3;
+  top:0;left:5%;right:5%;height:27px;
+  border-bottom:3px solid rgba(36,75,45,.95);
+  border-radius:0 0 50% 50%;
+  background:
+    radial-gradient(circle at 8% 78%,#ffe6b4 0 2px,transparent 4px),
+    radial-gradient(circle at 25% 98%,#ffe6b4 0 2px,transparent 4px),
+    radial-gradient(circle at 50% 100%,#ffe6b4 0 2px,transparent 4px),
+    radial-gradient(circle at 75% 98%,#ffe6b4 0 2px,transparent 4px),
+    radial-gradient(circle at 92% 78%,#ffe6b4 0 2px,transparent 4px),
+    repeating-linear-gradient(112deg,transparent 0 7px,rgba(38,82,48,.95) 8px 10px,transparent 11px 17px);
+  filter:drop-shadow(0 2px 4px rgba(0,0,0,.7)) drop-shadow(0 0 7px rgba(255,220,166,.24));
+  pointer-events:none;
+}
+body.christmas-season .garage-hero::after{
+  content:"";
+  position:absolute;
+  z-index:2;
+  right:clamp(14px,3vw,42px);bottom:10px;
+  width:58px;height:82px;
+  background:
+    radial-gradient(circle at 50% 24%,#ffe6b4 0 2px,transparent 4px),
+    radial-gradient(circle at 35% 48%,#ffe6b4 0 2px,transparent 4px),
+    radial-gradient(circle at 64% 62%,#ffe6b4 0 2px,transparent 4px),
+    linear-gradient(90deg,transparent 46%,#6b4930 47% 54%,transparent 55%),
+    linear-gradient(180deg,transparent 0 77%,rgba(20,48,29,.95) 78%),
+    #214b30;
+  clip-path:polygon(50% 0,61% 22%,76% 25%,66% 39%,87% 44%,72% 58%,95% 65%,64% 72%,64% 100%,36% 100%,36% 72%,5% 65%,28% 58%,13% 44%,34% 39%,24% 25%,39% 22%);
+  filter:drop-shadow(0 5px 9px rgba(0,0,0,.55));
+  opacity:.9;
+  pointer-events:none;
+}
+body.christmas-season .logo-stage{
+  isolation:isolate;
+}
+body.christmas-season .logo-stage::before{
+  content:"";
+  position:absolute;
+  z-index:4;
+  top:2%;left:13%;right:13%;height:19%;
+  background:linear-gradient(180deg,rgba(255,255,255,.98),rgba(228,239,239,.9) 70%,rgba(255,255,255,.0));
+  clip-path:polygon(0 0,100% 0,98% 43%,91% 50%,85% 38%,78% 61%,69% 45%,61% 72%,51% 48%,43% 67%,34% 45%,25% 62%,17% 42%,9% 55%,2% 42%);
+  filter:drop-shadow(0 3px 3px rgba(0,0,0,.38));
+  pointer-events:none;
+}
+body.christmas-season .logo-stage::after{
+  content:"";
+  position:absolute;
+  z-index:4;
+  top:9%;left:16%;right:16%;height:8px;
+  background:
+    radial-gradient(circle at 5% 50%,#ffe9c4 0 2px,transparent 4px),
+    radial-gradient(circle at 27% 50%,#ffe9c4 0 2px,transparent 4px),
+    radial-gradient(circle at 50% 50%,#ffe9c4 0 2px,transparent 4px),
+    radial-gradient(circle at 73% 50%,#ffe9c4 0 2px,transparent 4px),
+    radial-gradient(circle at 95% 50%,#ffe9c4 0 2px,transparent 4px);
+  filter:drop-shadow(0 0 5px rgba(255,224,176,.7));
+  pointer-events:none;
+}
+body.christmas-season .access-card::after{
+  content:"";
+  top:-1px;left:9%;right:9%;width:auto;height:15px;
+  background:
+    radial-gradient(circle at 8% 75%,#ffe6b4 0 2px,transparent 4px),
+    radial-gradient(circle at 30% 95%,#ffe6b4 0 2px,transparent 4px),
+    radial-gradient(circle at 50% 100%,#ffe6b4 0 2px,transparent 4px),
+    radial-gradient(circle at 70% 95%,#ffe6b4 0 2px,transparent 4px),
+    radial-gradient(circle at 92% 75%,#ffe6b4 0 2px,transparent 4px);
+  border-bottom:2px solid rgba(39,78,48,.95);
+  border-radius:0 0 50% 50%;
+  box-shadow:0 0 10px rgba(255,224,176,.25);
+  animation:none;
+}
+body.christmas-season .app-backdrop::after{
+  background-image:
+    radial-gradient(circle at 12% 18%,rgba(255,255,255,.88) 0 1.2px,transparent 2.5px),
+    radial-gradient(circle at 78% 24%,rgba(255,255,255,.72) 0 1.2px,transparent 2.5px),
+    radial-gradient(circle at 42% 68%,rgba(255,255,255,.76) 0 1.2px,transparent 2.5px),
+    radial-gradient(circle at 90% 82%,rgba(255,255,255,.68) 0 1.2px,transparent 2.5px),
+    linear-gradient(180deg,rgba(16,11,16,.28),rgba(16,11,16,.68) 52%,rgba(16,11,16,.78)),
+    radial-gradient(ellipse 80% 55% at 70% 100%,rgba(190,53,78,.13),transparent 65%);
+}
+@media(max-width:760px){
+  body.christmas-season .garage-hero::after{width:42px;height:60px;right:12px;bottom:8px}
+  body.christmas-season .topbar::before{left:8%;right:8%}
+}
