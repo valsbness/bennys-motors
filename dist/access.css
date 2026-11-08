@@ -1,0 +1,110 @@
+/* Pantalla de carga y acceso: un panel de cristal vino centrado, flotando delante del taller. */
+
+/* ─── Carga: estado real de sesión y datos (sin porcentajes ni esperas artificiales) ─── */
+.loading-screen{display:none;position:fixed;inset:0;z-index:100;isolation:isolate;overflow:hidden;align-items:center;justify-content:center;flex-direction:column;text-align:center;padding:30px;background:radial-gradient(ellipse at 50% 42%,#3a1022 0,#1a0912 46%,#100B10 100%)}
+.booting .loading-screen{display:flex}
+.booting .access-screen,.booting .app-shell,.booting .mobile-nav,.booting .mobile-total{display:none!important}
+.loading-glow{position:absolute;z-index:-1;inset:25% -20% -20%;background:radial-gradient(ellipse at 50% 70%,rgba(255,77,116,.14),transparent 62%);animation:glow-breathe 7s ease-in-out infinite alternate}
+.loading-mark{position:relative;width:min(380px,74vw);margin-bottom:30px;animation:rise .45s var(--ease) both}
+.loading-logo{display:block;width:100%;height:auto;filter:drop-shadow(0 12px 28px rgba(0,0,0,.55))}
+.loading-sheen{position:absolute;inset:0;overflow:hidden;-webkit-mask:url("assets/logo3d/bennys-wordmark.webp") center/100% 100% no-repeat;mask:url("assets/logo3d/bennys-wordmark.webp") center/100% 100% no-repeat;pointer-events:none}
+.loading-sheen:before{content:"";position:absolute;inset:0;background:linear-gradient(100deg,transparent 38%,rgba(255,190,208,.62) 50%,transparent 62%);transform:translateX(-100%);animation:sheen 2.8s ease-in-out infinite}
+.loading-line{position:relative;width:150px;height:2px;border-radius:2px;background:rgba(255,100,130,.2);overflow:hidden;margin-bottom:22px}
+.loading-line:after{content:"";position:absolute;inset:0;width:40%;background:linear-gradient(90deg,transparent,#ff6d8a,transparent);animation:line-run 1.5s ease-in-out infinite}
+.loading-screen h1{font-size:18px;font-weight:600;letter-spacing:-.01em}
+.loading-screen p{font-size:14px;color:var(--ink-2);margin-top:8px;max-width:320px}
+
+/* ─── Acceso ─── */
+.access-screen{display:none;position:relative;isolation:isolate;min-height:100dvh;background:#100B10}
+.locked .access-screen{display:block}
+.access-backdrop{position:fixed;inset:0;z-index:-1;overflow:hidden;background:#100B10}
+/* La fachada original (nítida) se amplía lo justo para que puerta, neón y calabazas queden junto al panel centrado: la imagen mide
+   1,161·ancho + 557 px, así su puerta empieza siempre a la derecha del panel (440 px). Sin rellenos ni desenfoques añadidos. */
+.access-photo{position:absolute;inset:0;background:url("assets/halloween/bennys-acceso-fachada.webp") 0% 62%/max(calc(116.1vw + 557px),calc(100vh*1.7766)) auto no-repeat}
+.access-veil{position:absolute;inset:0;background:radial-gradient(ellipse 520px 620px at 50% 50%,rgba(14,4,10,.5),transparent 72%),linear-gradient(180deg,rgba(16,6,12,.22),rgba(16,6,12,0) 40%,rgba(16,6,12,.4))}
+.access-stage{min-height:100dvh;display:grid;place-items:center;padding:28px 20px}
+.access-card{position:relative;width:min(440px,100%);padding:24px 38px 20px;border-radius:22px;background:linear-gradient(180deg,rgba(52,16,32,.7),rgba(27,8,18,.66));border:1px solid rgba(255,82,124,.5);box-shadow:0 34px 80px rgba(9,0,10,.62),0 10px 28px rgba(9,0,10,.4),inset 0 1px rgba(255,198,213,.26);-webkit-backdrop-filter:blur(22px) saturate(1.1);backdrop-filter:blur(22px) saturate(1.1);animation:card-in .55s var(--ease) both,card-float 8s .55s ease-in-out infinite}
+.access-card:focus-within{animation-play-state:running,paused}
+.access-card:after{content:"";position:absolute;top:-1px;left:30px;width:110px;height:1px;background:linear-gradient(90deg,transparent,#ffd0df,transparent);box-shadow:0 0 13px #ff426a;animation:rim-run 9s ease-in-out infinite alternate;pointer-events:none}
+.logo-stage{position:relative;width:100%;max-width:400px;margin:0 auto 4px;aspect-ratio:1000/472}
+.logo-still{display:block;width:100%;height:100%;object-fit:contain;filter:drop-shadow(0 10px 22px rgba(8,0,6,.5));transition:opacity .3s var(--ease)}
+.logo3d-canvas{position:absolute;inset:0;width:100%;height:100%;opacity:0;transition:opacity .3s var(--ease)}
+.logo-stage.is-live .logo3d-canvas{opacity:1}
+.logo-stage.is-live .logo-still{opacity:0}
+.access-kicker{font-size:11px;letter-spacing:.3em;font-weight:600;color:#ff7897;margin:8px 0 8px}
+.access-card h1{font:600 clamp(32px,8vw,40px)/1.08 var(--serif);letter-spacing:-.012em;text-wrap:balance;color:#fff}
+.access-lead{margin-top:8px;font-size:15px;color:var(--ink-2)}
+.auth-tabs{display:flex;gap:26px;margin:22px 0 4px;border-bottom:1px solid rgba(243,93,120,.28)}
+.auth-tabs button{font-size:14px;padding:0 0 11px;color:#c9aeba;position:relative;transition:color .18s}
+.auth-tabs button:hover{color:#fff}
+.auth-tabs button.active{color:#fff;font-weight:600}
+.auth-tabs button.active:after{content:"";position:absolute;inset:auto 0 -1px;height:2px;border-radius:2px;background:#ff4774;box-shadow:0 0 10px #e92f61}
+#auth-form{display:grid;gap:0}
+.field-group{margin-top:16px}
+.field-group label{font-size:11px;letter-spacing:.2em;font-weight:600;color:var(--ink-2);margin-bottom:8px;display:block}
+.field{display:flex;align-items:center;gap:11px;padding:0 13px;min-height:50px;border:1px solid rgba(196,89,110,.5);border-radius:9px;background:var(--field);transition:border-color .18s,box-shadow .18s}
+.field:focus-within{border-color:#f0587f;box-shadow:0 0 0 3px rgba(240,88,127,.16),0 0 18px rgba(210,36,78,.16)}
+.field-icon{display:inline-flex;color:#dcc1cd}
+.field-icon svg{width:19px;height:19px}
+.field input{min-width:0;width:100%;background:none;border:none;box-shadow:none!important;color:#fff;padding:13px 0;font-size:15px}
+.field input::placeholder{color:#b9a0ac}
+/* El autorrelleno del navegador no debe pintar su rectángulo azul sobre el cristal */
+.field input:-webkit-autofill,.field input:-webkit-autofill:hover,.field input:-webkit-autofill:focus{-webkit-text-fill-color:#fff;caret-color:#fff;box-shadow:0 0 0 1000px #1b0b14 inset!important;border-radius:6px;transition:background-color 99999s}
+.reveal{display:flex;align-items:center;justify-content:center;width:36px;height:36px;margin-right:-8px;border-radius:8px;color:#dcc1cd;transition:color .15s,background .15s}
+.reveal:hover{color:#fff;background:rgba(190,53,78,.25)}
+.reveal svg{width:20px;height:20px}
+#auth-form .form-message{margin-top:12px;padding:10px 12px;border-radius:8px;background:rgba(190,53,78,.14);border:1px solid rgba(255,110,140,.34);font-size:13px}
+#auth-form .form-message.ok{background:rgba(46,128,100,.2);border-color:var(--green-line);color:#c3f0d8}
+#auth-form .form-message.busy{background:rgba(255,255,255,.05);border-color:var(--line);color:var(--ink-2)}
+#auth-form .form-message.busy svg{animation:spin 1.2s linear infinite}
+.access-submit{margin-top:22px;width:100%;min-height:52px;justify-content:space-between;padding:0 20px;font-size:16px;border-radius:10px}
+.access-submit svg{width:20px;height:20px;transition:transform .2s var(--ease)}
+.access-submit:hover:not(:disabled) svg{transform:translateX(3px)}
+.access-submit[aria-busy=true]{filter:saturate(.8);cursor:progress}
+.access-authorized{display:flex;align-items:center;gap:12px;margin:18px 0 6px;font-size:12px;color:var(--ink-2)}
+.access-authorized span{height:1px;background:rgba(210,100,125,.32);flex:1}
+.ambient-control{display:flex;align-items:center;justify-content:center;gap:8px;margin:8px auto 0;padding:9px 14px;border-radius:20px;font-size:12px;color:var(--ink-2);border:1px solid transparent;transition:color .18s,border-color .18s,background .18s}
+.ambient-control svg{width:16px;height:16px}
+.ambient-control:hover:not(:disabled){color:#fff;border-color:var(--line-strong);background:rgba(190,53,78,.14)}
+.ambient-control:disabled{opacity:.7;cursor:default}
+.access-season{position:fixed;bottom:18px;right:26px;display:flex;align-items:center;gap:10px;font-size:11px;letter-spacing:.3em;font-weight:600;color:#f0c8d3;text-shadow:0 1px 8px #000}
+.access-season span{width:6px;height:6px;border-radius:50%;background:#ff4d74}
+.gate-status{padding:20px 0 6px;display:grid;gap:14px;justify-items:stretch;text-align:left}
+.gate-icon{color:var(--crimson-hi);filter:drop-shadow(0 0 8px rgba(255,77,116,.5))}
+.gate-icon svg{width:30px;height:30px}
+.gate-status p{font-size:14px;color:var(--ink-2);line-height:1.7}
+.gate-status .button{width:100%;min-height:48px}
+.gate-status .text-button{justify-self:center}
+
+@keyframes card-in{from{opacity:0;transform:translateY(16px) scale(.99)}to{opacity:1;transform:none}}
+@keyframes card-float{0%,100%{transform:translateY(0)}50%{transform:translateY(-6px)}}
+@keyframes rim-run{from{transform:translateX(0);opacity:1}to{transform:translateX(190px);opacity:.45}}
+@keyframes glow-breathe{from{opacity:.55}to{opacity:1}}
+@keyframes sheen{0%,25%{transform:translateX(-100%)}75%,100%{transform:translateX(100%)}}
+@keyframes line-run{from{transform:translateX(-100%)}to{transform:translateX(250%)}}
+
+/* Alturas reducidas (portátiles): el panel conserva todo sin recortar y se desplaza si hace falta */
+@media(max-height:860px){.access-card{padding-top:18px}.logo-stage{max-width:340px}.access-lead{font-size:14px}.auth-tabs{margin-top:16px}.field-group{margin-top:13px}.access-submit{margin-top:18px}.access-authorized{margin-top:14px}}
+@media(max-height:720px){.logo-stage{max-width:270px}.access-card h1{font-size:30px}.access-kicker{margin-top:4px}.access-stage{padding-block:16px}}
+/* Tablet en vertical: la fachada ancha, desplazada para que puerta, neón y calabazas queden junto al panel */
+@media(min-width:761px) and (max-aspect-ratio:1/1){.access-photo{background-position:30% 60%}}
+@media(max-width:760px){
+  /* Composición vertical: neón arriba, calabazas abajo y el centro desenfocado tras la tarjeta */
+  .access-photo{background:url("assets/halloween/bennys-acceso-movil.webp") center top/cover no-repeat}
+  .access-stage{padding:14px 14px 18px}
+  .access-card{padding:14px 22px 12px;border-radius:18px;-webkit-backdrop-filter:blur(16px) saturate(1.1);backdrop-filter:blur(16px) saturate(1.1);animation:card-in .5s var(--ease) both}
+  .logo-stage{max-width:236px}
+  .access-kicker{margin-top:2px;font-size:10px}
+  .access-card h1{font-size:30px}
+  .access-lead{font-size:14px;margin-top:5px}
+  .auth-tabs{margin-top:12px}
+  .field-group{margin-top:10px}.field-group label{margin-bottom:6px}
+  .field{min-height:46px}
+  .access-submit{margin-top:14px;min-height:50px}
+  .access-authorized{margin:12px 0 2px}
+  .ambient-control{margin-top:2px;padding-block:6px}
+  .access-season{display:none}
+  .access-veil{background:linear-gradient(180deg,rgba(16,6,12,.12),rgba(16,6,12,.18) 60%,rgba(16,6,12,.3))}
+}
+@supports not (backdrop-filter:blur(1px)){.access-card{background:rgba(38,12,26,.94)}}
+@media(prefers-reduced-motion:reduce){.access-card{animation:none!important}}
