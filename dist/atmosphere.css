@@ -1,36 +1,6 @@
-/* Ambiente de Halloween: fondos del taller, niebla baja, pocas brasas y murciélagos ocasionales.
-   Todo es decorativo (aria-hidden) y se detiene con “Pausar ambiente”, prefers-reduced-motion o pestaña oculta. */
-
-/* Fondo del panel: el interior del taller ya desenfocado y oscurecido (imagen precalculada: el navegador no recalcula un
-   desenfoque en cada cuadro). Es estático; las superficies de datos se apoyan en un velo más oscuro. */
+/* Ambiente visual de Benny’s Motors: fondo neutro de taller, sin elementos estacionales. */
 .app-backdrop{position:fixed;inset:0;z-index:0;overflow:hidden;pointer-events:none;background:#100B10}
-.app-backdrop:before{content:"";position:absolute;inset:0;background:url("assets/halloween/bennys-panel-fondo.webp") center top/cover no-repeat}
-.app-backdrop:after{content:"";position:absolute;inset:0;background:linear-gradient(180deg,rgba(53,16,30,.16),rgba(30,9,20,.5) 42%,rgba(20,6,13,.64)),radial-gradient(ellipse 80% 55% at 70% 100%,rgba(190,53,78,.2),transparent 65%)}
-
-/* Niebla: capas separadas de la fotografía, lentas y de baja opacidad. */
-.ambient-fog{position:absolute;left:-30%;bottom:-22%;width:160%;height:62%;pointer-events:none;background:radial-gradient(ellipse at 20% 60%,rgba(255,150,172,.13),transparent 34%),radial-gradient(ellipse at 66% 50%,rgba(222,108,140,.12),transparent 40%),radial-gradient(ellipse at 92% 66%,rgba(200,124,176,.1),transparent 32%);animation:fog-drift 30s ease-in-out infinite alternate;opacity:.9;will-change:transform}
-.fog-far{bottom:-12%;height:46%;opacity:.5;animation-duration:40s;animation-delay:-12s;animation-direction:alternate-reverse}
-
-/* Brasas: muy pocas, pequeñas y en tono carmesí. */
-.ambient-embers{position:absolute;inset:0;overflow:hidden;pointer-events:none}
-.ambient-embers i{position:absolute;bottom:-8px;left:12%;width:3px;height:3px;border-radius:50%;background:#ff8aa0;box-shadow:0 0 9px #ff4d74;opacity:0;animation:ember-rise 13s linear infinite}
-.ambient-embers i:nth-child(2){left:31%;animation-delay:-7s;animation-duration:18s;width:2px;height:2px}
-.ambient-embers i:nth-child(3){left:57%;animation-delay:-3s;animation-duration:15s}
-.ambient-embers i:nth-child(4){left:78%;animation-delay:-11s;animation-duration:20s;width:2px;height:2px}
-.ambient-embers i:nth-child(5){left:92%;animation-delay:-5s;animation-duration:16s}
-
-/* Murciélagos: aparecen rara vez, cruzan una franja libre del cielo y no pasan por el formulario. */
-.bat{position:absolute;width:44px;height:22px;fill:#14060c;stroke:none;opacity:0;filter:drop-shadow(0 0 2px rgba(255,90,128,.4));pointer-events:none}
-.bat-one{top:11%;right:-60px;animation:bat-cross 52s 6s linear infinite}
-.bat-two{top:17%;right:-60px;width:28px;height:14px;animation:bat-cross 61s 29s linear infinite}
-
-@keyframes fog-drift{from{transform:translate3d(-5%,0,0)}to{transform:translate3d(8%,-4%,0)}}
-@keyframes ember-rise{0%{opacity:0;transform:translate3d(0,0,0)}15%{opacity:.7}80%{opacity:.3}100%{opacity:0;transform:translate3d(34px,-230px,0)}}
-@keyframes bat-cross{0%{opacity:0;transform:translate3d(0,0,0) rotate(-10deg)}2%{opacity:.85}12%{transform:translate3d(-17vw,26px,0) rotate(6deg)}22%{opacity:.85;transform:translate3d(-30vw,-8px,0) rotate(-12deg)}26%,100%{opacity:0;transform:translate3d(-34vw,-4px,0) rotate(-10deg)}}
-
-/* Pausa del ambiente (botón con preferencia persistente) y movimiento reducido. */
-.effects-paused .ambient-fog,.effects-paused .ambient-embers i,.effects-paused .access-card,.effects-paused .access-card:after,.effects-paused .loading-line:after,.effects-paused .loading-sheen:before{animation-play-state:paused!important}
-.effects-paused .bat{animation:none;opacity:0}
-.effects-paused .ambient-embers{opacity:0}
-@media(prefers-reduced-motion:reduce){*,*:before,*:after{animation:none!important;transition:none!important;scroll-behavior:auto!important}.ambient-embers,.bat{display:none}.ambient-fog{will-change:auto}}
-@media(max-width:760px){.ambient-fog{will-change:auto}.bat{display:none}}
+.app-backdrop:before{content:"";position:absolute;inset:0;background:url("assets/garage.webp") center center/cover no-repeat}
+.app-backdrop:after{content:"";position:absolute;inset:0;background:linear-gradient(180deg,rgba(16,11,16,.38),rgba(16,11,16,.68) 48%,rgba(16,11,16,.78)),radial-gradient(ellipse 80% 55% at 70% 100%,rgba(190,53,78,.13),transparent 65%)}
+.effects-paused .loading-line:after,.effects-paused .loading-sheen:before{animation-play-state:paused!important}
+@media(prefers-reduced-motion:reduce){*,*:before,*:after{animation:none!important;transition:none!important;scroll-behavior:auto!important}}
