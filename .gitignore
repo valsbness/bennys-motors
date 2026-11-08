@@ -1,0 +1,10 @@
+node_modules/
+preview/
+*.zip
+.DS_Store
+docs/tarifario-original.png
+.env
+.env.*
+!.env.example
+.impeccable/
+logo3d/.cache/
