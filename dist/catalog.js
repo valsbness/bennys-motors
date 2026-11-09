@@ -4,7 +4,8 @@ export const CATEGORIES = [
   {id:'motor', label:'Motor', icon:'engine'},
   {id:'traccion', label:'Tracción', icon:'drive'},
   {id:'neumaticos', label:'Neumáticos', icon:'wheel'},
-  {id:'extras', label:'Extras', icon:'bolt'}
+  {id:'extras', label:'Extras', icon:'bolt'},
+  {id:'premium', label:'PREMIUM', icon:'star'}
 ];
 // Importes transcritos del tarifario del servidor proporcionado por el usuario.
 export const CATALOG = [
@@ -26,6 +27,12 @@ export const CATALOG = [
   {id:'frenos', name:'Frenos cerámicos', shop:'Frenos Ceramicos', category:'extras', cost:8000, price:20000, icon:'brake', detail:'Control a la altura de la potencia.'},
   {id:'turbo', name:'Turbo charger', shop:'Turbo charger', category:'extras', cost:25000, price:35000, icon:'turbo', detail:'Ese empuje extra que se siente.'},
   {id:'kit', name:'Kit de extras', shop:'Kit de extras', category:'extras', cost:4000, price:5000, icon:'kit', detail:'El último toque de tu preparación.'}
+
+  {id:'full-v8', name:'Full Tuning V8', shop:'Full Tuning V8', category:'premium', cost:59500, price:110000, icon:'engine', detail:'Motor V8 · AWD · Semi-Slick · Frenos cerámicos.'},
+  {id:'full-v12', name:'Full Tuning V12', shop:'Full Tuning V12', category:'premium', cost:319500, price:570000, icon:'engine', detail:'Motor V12 · AWD · Semi-Slick · Frenos cerámicos.'},
+  {id:'nitro-bottle', name:'Botella de óxido nitroso', shop:'Botella de óxido nitroso', category:'premium', cost:20000, price:50000, icon:'bolt', detail:'Botella individual de óxido nitroso.'},
+  {id:'nitro-install', name:'Kit de instalación de nitroso', shop:'Kit de instalación de nitroso', category:'premium', cost:300000, price:500000, icon:'wrench', detail:'Instalación del sistema de óxido nitroso.'},
+  {id:'drift-kit', name:'Kit de tuning para drift', shop:'Kit de tuning para drift', category:'premium', cost:800000, price:1000000, icon:'gauge', detail:'Kit especial para configuración drift.'}
 ];
 export const PRESETS = [
   {id:'reference', name:'Selección de tu tabla', detail:'V8 · AWD · Slick · Frenos cerámicos', items:['v8','awd','slick','frenos'], icon:'engine'},
