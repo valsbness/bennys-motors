@@ -7,7 +7,7 @@ const admin='11111111-1111-4111-8111-111111111111',employee='22222222-2222-4222-
 test('Supabase: instalación, permisos, cálculos y aislamiento de empleados',async()=>{
   const db=new PGlite();await db.exec(`create role anon;create role authenticated;create role service_role bypassrls;create schema auth;create table auth.users(id uuid primary key,email text,raw_user_meta_data jsonb default '{}');create function auth.uid() returns uuid language sql stable as $$select nullif(current_setting('request.jwt.claim.sub',true),'')::uuid$$;grant usage on schema auth,public to authenticated,anon;grant execute on function auth.uid() to authenticated,anon;insert into auth.users values('${admin}','admin@example.invalid','{"display_name":"Admin"}'),('${employee}','empleado@example.invalid','{"display_name":"Mecánico"}'),('${other}','otro@example.invalid','{"display_name":"Otro"}');`);
   const results=await db.exec(sql),code=results.at(-1).rows[0].codigo_inicial_admin;
-  assert.equal(code.length,64);assert.equal((await db.query('select * from bennys_services')).rows.length,18);
+  assert.equal(code.length,64);assert.equal((await db.query('select * from bennys_services')).rows.length,23);
   const as=async(id)=>db.exec(`reset role;set role authenticated;set request.jwt.claim.sub='${id}';`);
   await as(admin);await db.query('select bennys_ensure_profile()');
   await assert.rejects(db.query('select bennys_claim_admin(null)'));await assert.rejects(db.query("select bennys_claim_admin('incorrecto-incorrecto')"));
