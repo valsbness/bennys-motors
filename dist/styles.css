@@ -539,3 +539,23 @@ dialog::backdrop{background:rgba(10,3,8,.72);-webkit-backdrop-filter:blur(4px);b
 @media(max-width:370px){.stat strong{font-size:21px}.page-heading h1{font-size:24px}.garage-hero h1{font-size:30px}.service-card{padding:11px}.service-card h3{font-size:13px}}
 @supports not (backdrop-filter:blur(1px)){.glass-ambient{background:rgba(26,8,18,.94)}.panel,.summary-panel,.table-panel,.filter-panel,.customer-panel,.order-panel,.empty-state,.home-toolbar,.kpi-grid{background:rgba(24,8,17,.95)}}
 @media(prefers-reduced-motion:reduce){*,*:before,*:after{animation:none!important;transition:none!important;scroll-behavior:auto!important}}
+
+/* Tarifario PREMIUM */
+.premium-tariff{margin-top:30px;padding-top:28px;border-top:1px solid var(--line)}
+.premium-tariff-heading{margin-bottom:18px}
+.premium-kicker{display:inline-block;color:var(--crimson-hi);font-size:10px;font-weight:800;letter-spacing:.2em}
+.premium-tariff-heading h2{margin:5px 0 4px;font-size:25px;letter-spacing:.12em;font-weight:800}
+.premium-tariff-heading p{margin:0;color:var(--ink-2);font-size:13px;line-height:1.6}
+.premium-tariff-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:13px}
+.premium-price-card{min-width:0;padding:18px;border:1px solid rgba(225,155,83,.28);border-radius:13px;background:linear-gradient(145deg,rgba(190,53,78,.11),rgba(255,255,255,.025));box-shadow:inset 0 1px rgba(255,255,255,.035)}
+.premium-card-top>span{display:inline-block;margin-bottom:9px;padding:4px 8px;border-radius:5px;background:rgba(190,53,78,.2);color:#ff9caf;font-size:9px;font-weight:800;letter-spacing:.14em}
+.premium-card-top>strong{display:block;font-size:16px;line-height:1.35}
+.premium-card-top p{margin:6px 0 13px;color:var(--ink-3);font-size:12px;line-height:1.5}
+.premium-separate{display:flex;justify-content:space-between;gap:10px;padding:9px 0;border-top:1px solid var(--line-soft);font-size:11px;color:var(--ink-3)}
+.premium-separate strong{color:var(--ink-2);font-variant-numeric:tabular-nums;white-space:nowrap}
+.premium-price-lines{display:grid;gap:9px;padding-top:10px;border-top:1px solid var(--line-soft)}
+.premium-price-lines>div{display:flex;justify-content:space-between;gap:10px;font-size:12px;color:var(--ink-2)}
+.premium-price-lines strong{color:var(--ink);font-variant-numeric:tabular-nums;white-space:nowrap}
+.premium-price-lines .premium-profit{padding-top:9px;border-top:1px solid var(--line-soft);color:#a9d9b5}
+.premium-price-lines .premium-profit strong{color:#a9d9b5;font-size:15px}
+@media(max-width:760px){.premium-tariff-grid{grid-template-columns:1fr}.premium-price-card{padding:16px}}
