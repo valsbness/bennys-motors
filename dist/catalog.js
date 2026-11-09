@@ -26,7 +26,7 @@ export const CATALOG = [
   {id:'offroad', name:'Offroad', shop:'Offroad', category:'neumaticos', cost:4500, price:6500, icon:'wheel', detail:'Prepáralo para salir del asfalto.', exclusive:'neumaticos'},
   {id:'frenos', name:'Frenos cerámicos', shop:'Frenos Ceramicos', category:'extras', cost:8000, price:20000, icon:'brake', detail:'Control a la altura de la potencia.'},
   {id:'turbo', name:'Turbo charger', shop:'Turbo charger', category:'extras', cost:25000, price:35000, icon:'turbo', detail:'Ese empuje extra que se siente.'},
-  {id:'kit', name:'Kit de extras', shop:'Kit de extras', category:'extras', cost:4000, price:5000, icon:'kit', detail:'El último toque de tu preparación.'}
+  {id:'kit', name:'Kit de extras', shop:'Kit de extras', category:'extras', cost:4000, price:5000, icon:'kit', detail:'El último toque de tu preparación.'},
 
   {id:'full-v8', name:'Full Tuning V8', shop:'Full Tuning V8', category:'premium', cost:59500, price:110000, icon:'engine', detail:'Motor V8 · AWD · Semi-Slick · Frenos cerámicos.'},
   {id:'full-v12', name:'Full Tuning V12', shop:'Full Tuning V12', category:'premium', cost:319500, price:570000, icon:'engine', detail:'Motor V12 · AWD · Semi-Slick · Frenos cerámicos.'},
