@@ -4,8 +4,11 @@ import {CATALOG} from '../dist/catalog.js';
 import {calculate,addToOrder,receipt,frequentClients} from '../dist/core.js';
 const service=id=>CATALOG.find(i=>i.id===id);
 const selected=ids=>ids.map(id=>({...service(id),qty:1}));
-test('Los 18 costos y precios coinciden con la imagen del servidor',()=>{
-  assert.deepEqual(CATALOG.map(i=>[i.cost,i.price]),[[7000,10000],[7000,10000],[2500,5000],[2000,3000],[500,1500],[250,500],[500,1000],[300000,500000],[40000,50000],[8000,12500],[7000,11500],[8500,10500],[4000,6000],[3500,6000],[4500,6500],[8000,20000],[25000,35000],[4000,5000]]);
+test('Los 18 servicios originales conservan sus costos y precios',()=>{
+  assert.deepEqual(CATALOG.slice(0,18).map(i=>[i.cost,i.price]),[[7000,10000],[7000,10000],[2500,5000],[2000,3000],[500,1500],[250,500],[500,1000],[300000,500000],[40000,50000],[8000,12500],[7000,11500],[8500,10500],[4000,6000],[3500,6000],[4500,6500],[8000,20000],[25000,35000],[4000,5000]]);
+});
+test('Los cinco servicios PREMIUM tienen sus costos y precios configurados',()=>{
+  assert.deepEqual(CATALOG.slice(18).map(i=>[i.id,i.cost,i.price]),[['full-v8',59500,110000],['full-v12',319500,570000],['nitro-bottle',20000,50000],['nitro-install',300000,500000],['drift-kit',800000,1000000]]);
 });
 test('La selección marcada en la tabla suma 60.000 de costo y 88.500 de venta',()=>{
   const t=calculate(selected(['v8','awd','slick','frenos']));
