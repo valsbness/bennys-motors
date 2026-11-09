@@ -76,7 +76,12 @@ insert into public.bennys_services(id,name,cost,price,exclusive_group) values
 ('offroad','Offroad',4500,6500,'neumaticos'),
 ('frenos','Frenos cerámicos',8000,20000,null),
 ('turbo','Turbo charger',25000,35000,null),
-('kit','Kit de extras',4000,5000,null)
+('kit','Kit de extras',4000,5000,null),
+('full-v8','Full Tuning V8',59500,110000,null),
+('full-v12','Full Tuning V12',319500,570000,null),
+('nitro-bottle','Botella de óxido nitroso',20000,50000,null),
+('nitro-install','Kit de instalación de nitroso',300000,500000,null),
+('drift-kit','Kit de tuning para drift',800000,1000000,null)
 on conflict(id) do nothing;
 
 create or replace function public.bennys_ensure_profile(p_name text default null)
@@ -164,7 +169,7 @@ begin
   end if;
   if p_client is null or length(trim(p_client)) not between 1 and 80 or length(coalesce(p_player_id,''))>20 or length(coalesce(p_notes,''))>500 then raise exception 'Revisa los datos del cliente.'; end if;
   if p_payment not in ('Efectivo','Transferencia','Tarjeta') or p_payment is null then raise exception 'Método de pago no válido.'; end if;
-  if p_discount is null or p_discount<0 or p_discount>100 or p_items is null or jsonb_typeof(p_items)<>'array' or jsonb_array_length(p_items) not between 1 and 18 then raise exception 'Orden o descuento no válido.'; end if;
+  if p_discount is null or p_discount<0 or p_discount>100 or p_items is null or jsonb_typeof(p_items)<>'array' or jsonb_array_length(p_items) not between 1 and 23 then raise exception 'Orden o descuento no válido.'; end if;
   v_rate:=case when v_profile.role='admin' then coalesce(p_commission,v_profile.commission) else v_profile.commission end;
   if v_rate<0 or v_rate>100 then raise exception 'Comisión no válida.'; end if;
   for v_item in select value from jsonb_array_elements(p_items) loop
