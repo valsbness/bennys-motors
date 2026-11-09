@@ -2,8 +2,8 @@
 (()=>{
 // Clave publicable para el navegador. Los permisos se aplican mediante Auth y RLS.
 const CLOUD_CONFIG = Object.freeze({
-  url: 'https://ehckobsmodqjpfmnnver.supabase.co',
-  publishableKey: 'sb_publishable_Rh-mkG-r08P4MGyBUGSTfA_kokbJKYL'
+  url: 'https://fittgjvhqaeuctifwocj.supabase.co',
+  publishableKey: 'sb_publishable_ICX5toL7FpcnJq6Qitlb0Q_-7Hmv8ZQ'
 });
 
 const CATEGORIES = [
@@ -12,7 +12,8 @@ const CATEGORIES = [
   {id:'motor', label:'Motor', icon:'engine'},
   {id:'traccion', label:'Tracción', icon:'drive'},
   {id:'neumaticos', label:'Neumáticos', icon:'wheel'},
-  {id:'extras', label:'Extras', icon:'bolt'}
+  {id:'extras', label:'Extras', icon:'bolt'},
+  {id:'premium', label:'PREMIUM', icon:'star'}
 ];
 // Importes transcritos del tarifario del servidor proporcionado por el usuario.
 const CATALOG = [
@@ -34,6 +35,12 @@ const CATALOG = [
   {id:'frenos', name:'Frenos cerámicos', shop:'Frenos Ceramicos', category:'extras', cost:8000, price:20000, icon:'brake', detail:'Control a la altura de la potencia.'},
   {id:'turbo', name:'Turbo charger', shop:'Turbo charger', category:'extras', cost:25000, price:35000, icon:'turbo', detail:'Ese empuje extra que se siente.'},
   {id:'kit', name:'Kit de extras', shop:'Kit de extras', category:'extras', cost:4000, price:5000, icon:'kit', detail:'El último toque de tu preparación.'}
+
+  {id:'full-v8', name:'Full Tuning V8', shop:'Full Tuning V8', category:'premium', cost:59500, price:110000, icon:'engine', detail:'Motor V8 · AWD · Semi-Slick · Frenos cerámicos.'},
+  {id:'full-v12', name:'Full Tuning V12', shop:'Full Tuning V12', category:'premium', cost:319500, price:570000, icon:'engine', detail:'Motor V12 · AWD · Semi-Slick · Frenos cerámicos.'},
+  {id:'nitro-bottle', name:'Botella de óxido nitroso', shop:'Botella de óxido nitroso', category:'premium', cost:20000, price:50000, icon:'bolt', detail:'Botella individual de óxido nitroso.'},
+  {id:'nitro-install', name:'Kit de instalación de nitroso', shop:'Kit de instalación de nitroso', category:'premium', cost:300000, price:500000, icon:'wrench', detail:'Instalación del sistema de óxido nitroso.'},
+  {id:'drift-kit', name:'Kit de tuning para drift', shop:'Kit de tuning para drift', category:'premium', cost:800000, price:1000000, icon:'gauge', detail:'Kit especial para configuración drift.'}
 ];
 const PRESETS = [
   {id:'reference', name:'Selección de tu tabla', detail:'V8 · AWD · Slick · Frenos cerámicos', items:['v8','awd','slick','frenos'], icon:'engine'},
@@ -41,7 +48,7 @@ const PRESETS = [
   {id:'performance', name:'Street performance', detail:'Rendimiento · Rines · Turbo', items:['rendimiento','ruedas','turbo'], icon:'gauge'}
 ];
 
-const euro = value => new Intl.NumberFormat('es-ES',{style:'currency',currency:'EUR',useGrouping:'always',maximumFractionDigits:2,minimumFractionDigits:Math.abs(value-Math.round(value))>0.001?2:0}).format(value);
+const euro = value => String.fromCharCode(36)+new Intl.NumberFormat('en-US',{useGrouping:true,maximumFractionDigits:2,minimumFractionDigits:Math.abs(value-Math.round(value))>0.001?2:0}).format(value);
 const round = n => Math.round((n + Number.EPSILON) * 100) / 100;
 function calculate(items, discountPercent=0, commissionPercent=0) {
   const subtotal=round(items.reduce((n,i)=>n+i.price*i.qty,0));
@@ -241,7 +248,7 @@ class BennysCloud {
       if(!profile.active){this.ready=false;this.hasAdmin=await this.rpc('bennys_has_admin');if(version!==this.version||userId!==this.user?.id)return;this.loading=false;this.onChange({kind:'pending'});return;}
       const [services,orders,team,pro]=await Promise.all([this.pages('bennys_services','id'),this.pages('bennys_orders','created_at'),profile.role==='admin'?this.pages('bennys_profiles','created_at'):Promise.resolve([]),this.loadPro(profile)]);
       if(version!==this.version||userId!==this.user?.id)return;
-      if(services.length!==18)throw Error('El tarifario del taller está incompleto.');
+      if(services.length!==23)throw Error('El tarifario del taller está incompleto.');
       this.ready=true;this.loading=false;this.lastSynced=new Date();this.team=team;Object.assign(this,pro);this.onChange({kind:'data',profile,services,orders:orders.map(orderPayload),team,userId});
     }catch(error){
       if(version!==this.version||userId!==this.user?.id)return;
@@ -666,8 +673,8 @@ const percent=n=>Number.isFinite(n)&&n>=0&&n<=100;
 const amount=n=>Number.isFinite(n)&&n>=0&&n<=100000000;
 const validItem=i=>i&&CATALOG.some(s=>s.id===i.id)&&typeof i.name==='string'&&amount(i.price)&&amount(i.cost)&&Number.isInteger(i.qty)&&i.qty>=1&&i.qty<=999;
 const validDraft=d=>d&&Array.isArray(d.items)&&d.items.every(validItem)&&typeof d.client==='string'&&percent(d.discount)&&percent(d.commission);
-function validState(s){return s?.version===1&&Array.isArray(s.catalog)&&s.catalog.length===18&&CATALOG.every(original=>s.catalog.some(i=>i.id===original.id&&amount(i.price)&&amount(i.cost)))&&Array.isArray(s.orders)&&Number.isSafeInteger(s.next)&&s.next>0&&typeof s.settings?.mechanic==='string'&&percent(s.settings.commission)&&validDraft(s.draft)&&s.orders.every(o=>validDraft(o)&&typeof o.id==='string'&&typeof o.folio==='string'&&Number.isFinite(Date.parse(o.date))&&['subtotal','cost','discount','total','gross','commission','net','units'].every(k=>Number.isFinite(o.totals?.[k]))&&['active','cancelled'].includes(o.status));}
-function sanitizeState(s){const clean={...s,catalog:s.catalog.map(i=>({...CATALOG.find(o=>o.id===i.id),price:i.price,cost:i.cost})),draft:{...s.draft},orders:s.orders.map(o=>({...o}))};for(const row of [clean.draft,...clean.orders]){delete row.vehicle;delete row.plate;delete row.playerId;}return clean;}
+function validState(s){return s?.version===1&&Array.isArray(s.catalog)&&(s.catalog.length===18||s.catalog.length===CATALOG.length)&&CATALOG.every(original=>s.catalog.some(i=>i.id===original.id&&amount(i.price)&&amount(i.cost)))&&Array.isArray(s.orders)&&Number.isSafeInteger(s.next)&&s.next>0&&typeof s.settings?.mechanic==='string'&&percent(s.settings.commission)&&validDraft(s.draft)&&s.orders.every(o=>validDraft(o)&&typeof o.id==='string'&&typeof o.folio==='string'&&Number.isFinite(Date.parse(o.date))&&['subtotal','cost','discount','total','gross','commission','net','units'].every(k=>Number.isFinite(o.totals?.[k]))&&['active','cancelled'].includes(o.status));}
+function sanitizeState(s){const clean={...s,catalog:CATALOG.map(original=>{const saved=s.catalog.find(i=>i.id===original.id);return {...original,...(saved?{price:saved.price,cost:saved.cost}:{})};}),draft:{...s.draft},orders:s.orders.map(o=>({...o}))};for(const row of [clean.draft,...clean.orders]){delete row.vehicle;delete row.plate;delete row.playerId;}return clean;}
 function readState(key){try{const parsed=JSON.parse(localStorage.getItem(key));return validState(parsed)?sanitizeState(parsed):defaultState();}catch{return defaultState();}}
 let state=readState(GUEST_KEY),activeKey=GUEST_KEY,cloud=null,category='all',currentView='dashboard',toastTimer,accountUser=null,management=null,gatePhase='',connectionFailed=false,pendingPresentedUser=null;
 function toast(message){$('toast').textContent=message;$('toast').classList.add('visible');clearTimeout(toastTimer);toastTimer=setTimeout(()=>$('toast').classList.remove('visible'),4500);}
@@ -780,18 +787,7 @@ function openDetail(id){
 }
 function renderPrices(){
   const writable=Boolean(cloud?.isAdmin);$('restore-prices').disabled=!writable;
-  const premium=[
-    {name:'Full Tuning V8',cost:59500,price:110000,detail:'Motor V8 · Tracción AWD · Semi-Slick · Frenos cerámicos',separate:88500},
-    {name:'Full Tuning V12',cost:319500,price:570000,detail:'Motor V12 · Tracción AWD · Semi-Slick · Frenos cerámicos',separate:538500},
-    {name:'Botella de óxido nitroso',cost:20000,price:50000,detail:'Botella individual de nitro'},
-    {name:'Kit de instalación de nitroso',cost:300000,price:500000,detail:'Instalación del sistema de óxido nitroso'},
-    {name:'Kit de tuning para drift',cost:800000,price:1000000,detail:'Pieza / kit especial para configuración drift'}
-  ];
-  $('price-table').innerHTML=`<table><thead><tr><th>Servicio en tablet / Tienda</th><th>Costo fábrica ($)</th><th>Precio de venta ($)</th><th>Ganancia base</th></tr></thead><tbody>${CATEGORIES.filter(c=>c.id!=='all').map(c=>`<tr class="table-category"><td colspan="4">${esc(c.label)}</td></tr>${state.catalog.filter(i=>i.category===c.id).map(i=>`<tr><td><strong>${esc(i.name)}</strong><small>${esc(i.shop)}</small></td><td><label class="sr-only" for="cost-${i.id}">Costo de ${esc(i.name)}</label><input class="price-input" id="cost-${i.id}" type="number" min="0" max="100000000" step="0.01" value="${i.cost}" data-price="${i.id}" data-field="cost" ${writable?'':'readonly'}></td><td><label class="sr-only" for="price-${i.id}">Precio de ${esc(i.name)}</label><input class="price-input" id="price-${i.id}" type="number" min="0" max="100000000" step="0.01" value="${i.price}" data-price="${i.id}" data-field="price" ${writable?'':'readonly'}></td><td class="margin-price" id="margin-${i.id}">${euro(i.price-i.cost)}</td></tr>`).join('')}`).join('')}</tbody></table>
-  <section class="premium-tariff" aria-labelledby="premium-tariff-title">
-    <div class="premium-tariff-heading"><span class="premium-kicker">PREPARACIONES ESPECIALES</span><h2 id="premium-tariff-title">PREMIUM</h2><p>Costos de fábrica, precios de venta y ganancia por cada paquete o pieza especial.</p></div>
-    <div class="premium-tariff-grid">${premium.map(item=>`<article class="premium-price-card"><div class="premium-card-top"><span>PREMIUM</span><strong>${esc(item.name)}</strong><p>${esc(item.detail)}</p></div>${item.separate?'<div class="premium-separate">Suma de piezas por separado <strong>'+euro(item.separate)+'</strong></div>':''}<div class="premium-price-lines"><div><span>Costo de fábrica</span><strong>${euro(item.cost)}</strong></div><div><span>Precio de venta</span><strong>${euro(item.price)}</strong></div><div class="premium-profit"><span>Ganancia</span><strong>${euro(item.price-item.cost)}</strong></div></div></article>`).join('')}</div>
-  </section>`;
+  $('price-table').innerHTML=`<table><thead><tr><th>Servicio en tablet / Tienda</th><th>Costo fábrica ($)</th><th>Precio venta ($)</th><th>Ganancia base</th></tr></thead><tbody>${CATEGORIES.filter(c=>c.id!=='all').map(c=>`<tr class="table-category"><td colspan="4">${esc(c.label)}</td></tr>${state.catalog.filter(i=>i.category===c.id).map(i=>`<tr><td><strong>${esc(i.name)}</strong><small>${esc(i.shop)}</small></td><td><label class="sr-only" for="cost-${i.id}">Costo de ${esc(i.name)}</label><input class="price-input" id="cost-${i.id}" type="number" min="0" max="100000000" step="0.01" value="${i.cost}" data-price="${i.id}" data-field="cost" ${writable?'':'readonly'}></td><td><label class="sr-only" for="price-${i.id}">Precio de ${esc(i.name)}</label><input class="price-input" id="price-${i.id}" type="number" min="0" max="100000000" step="0.01" value="${i.price}" data-price="${i.id}" data-field="price" ${writable?'':'readonly'}></td><td class="margin-price" id="margin-${i.id}">${euro(i.price-i.cost)}</td></tr>`).join('')}`).join('')}</tbody></table>`;
 }
 function renderSummary(){management?.commissions();}
 function download(name,body,type){const blob=new Blob([body],{type}),url=URL.createObjectURL(blob),link=document.createElement('a');link.href=url;link.download=name;document.body.append(link);link.click();link.remove();setTimeout(()=>URL.revokeObjectURL(url),1000);}
@@ -935,7 +931,7 @@ $('client-search').oninput=renderClients;$('show-clients').onclick=()=>setView('
 $('filters-toggle').onclick=()=>{const open=$('orders-filters').classList.toggle('filters-open');$('filters-toggle').setAttribute('aria-expanded',String(open));};
 $('order-search').oninput=renderOrders;for(const id of ['order-period','order-status-filter','order-payment','order-employee'])$(id).onchange=renderOrders;$('summary-period').onchange=renderSummary;$('dashboard-period').onchange=()=>management.dashboard();$('finance-period').onchange=()=>management.finance();$('audit-period').onchange=()=>management.audit();$('audit-search').oninput=()=>management.audit();$('new-expense').onclick=()=>management.newExpense();$('export-commissions').onclick=()=>management.exportCommissions();$('menu-toggle').onclick=()=>{document.body.classList.add('menu-animated');const open=document.body.classList.toggle('menu-open');$('menu-toggle').setAttribute('aria-expanded',String(open));};$('nav-backdrop').onclick=closeMenu;$('export-orders').onclick=exportCsv;
 $('price-table').onchange=async e=>{const input=e.target.closest('[data-price]');if(!input)return;const item=state.catalog.find(i=>i.id===input.dataset.price),value=Number(input.value);if(!cloud?.isAdmin||!input.value.trim()||!Number.isFinite(value)||value<0||value>100000000){input.value=item[input.dataset.field];toast('Solo el administrador puede guardar tarifas válidas.');return;}input.disabled=true;try{const saved=await cloud.saveService({...item,[input.dataset.field]:Math.round(value*100)/100});item.cost=Number(saved.cost);item.price=Number(saved.price);persist();$('margin-'+item.id).textContent=euro(item.price-item.cost);renderServices();toast('Tarifa guardada para todo el taller.');}catch(error){input.value=item[input.dataset.field];toast(errorText(error));}finally{if(input.isConnected)input.disabled=false;}};
-$('restore-prices').onclick=()=>{if(!cloud?.isAdmin)return;confirmAction('Restaurar el tarifario original','Se recuperarán los 18 precios de tu tabla. Las órdenes registradas conservarán sus importes.',async()=>{let saved=0;try{for(const service of CATALOG){await cloud.saveService(service);saved++;}await cloud.load();renderPrices();toast('Tarifario original restaurado.');}catch(error){await cloud.load();renderPrices();throw Error(`${saved} tarifas restauradas. ${errorText(error)}`);}},'Restaurar tarifas');};
+$('restore-prices').onclick=()=>{if(!cloud?.isAdmin)return;confirmAction('Restaurar el tarifario original','Se recuperarán los precios originales de los 23 servicios del taller. Las órdenes registradas conservarán sus importes.',async()=>{let saved=0;try{for(const service of CATALOG){await cloud.saveService(service);saved++;}await cloud.load();renderPrices();toast('Tarifario original restaurado.');}catch(error){await cloud.load();renderPrices();throw Error(`${saved} tarifas restauradas. ${errorText(error)}`);}},'Restaurar tarifas');};
 $('mobile-ticket').onclick=()=>document.querySelector('.order-panel').scrollIntoView({behavior:matchMedia('(prefers-reduced-motion:reduce)').matches?'instant':'smooth',block:'start'});
 document.addEventListener('keydown',e=>{if(cloud?.isActive&&e.key==='/'&&!$('modal').open&&!['INPUT','TEXTAREA','SELECT'].includes(document.activeElement.tagName)){e.preventDefault();setView('calculator');$('service-search').focus();}});
 const hash=location.hash.slice(1);setView(['dashboard','calculator','orders','clients','catalog','summary'].includes(hash)?hash:'dashboard');
