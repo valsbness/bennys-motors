@@ -36,3 +36,21 @@ export function revenueSeries(orders,period,now=new Date()){
   }
   return points;
 }
+
+
+/** Métricas mensuales por mecánico. Usa la comisión guardada en cada venta,
+ * para que cambios posteriores en el porcentaje no alteren el historial. */
+export function mechanicReportMetrics(orders,team=[]){
+  const employees=team.filter(person=>person.role==='employee');
+  const groups=new Map(employees.map(person=>[person.id,{id:person.id,name:person.display_name||'Mecánico',count:0,total:0,cost:0,gross:0,commission:0,net:0}]));
+  for(const order of orders.filter(item=>item.status==='active')){
+    const profile=team.find(person=>person.id===(order.employeeId||order.employee_id))
+      ||team.find(person=>person.role==='employee'&&person.display_name===order.mechanic);
+    const id=profile?.id||order.employeeId||order.employee_id||'unassigned';
+    if(!groups.has(id))groups.set(id,{id,name:profile?.display_name||order.mechanic||'Sin asignar',count:0,total:0,cost:0,gross:0,commission:0,net:0});
+    const row=groups.get(id),totals=order.totals||{};
+    row.count++;
+    for(const key of ['total','cost','gross','commission','net'])row[key]=round(row[key]+(Number(totals[key])||0));
+  }
+  return [...groups.values()].sort((a,b)=>b.total-a.total||a.name.localeCompare(b.name,'es'));
+}
