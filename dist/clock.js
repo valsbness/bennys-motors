@@ -15,6 +15,16 @@ export class ClockPanel{
     const saved=Number(session?.accumulated_seconds)||0;
     return saved+(session?.status==='active'&&session.segment_started_at?Math.max(0,Math.floor((Date.now()-Date.parse(session.segment_started_at))/1000)):0);
   }
+  notifyIdle(){
+    const session=this.cloud?.clockStatus;
+    if(session?.status==='active'){this.notifiedSession=null;return;}
+    if(session?.status!=='paused'||session.pause_reason!=='inactivity'||this.notifiedSession===session.id)return;
+    if(this.el('view-clock')?.classList.contains('active')||this.el('modal')?.open)return;
+    this.notifiedSession=session.id;
+    this.modal('Aviso de inactividad',`<div class="clock-idle-alert" role="alert"><strong>${icon('alert')} Tu fichaje se pausó automáticamente</strong><p>Pasó una hora sin registrar ventas ni compras. Si sigues esperando clientes, vuelve a ficharte. Si olvidaste desficharte, puedes finalizar tu jornada ahora.</p></div>`,`<button class="button secondary" data-close>Ahora no</button><button class="button secondary" id="clock-alert-finish">Desficharme ahora</button><button class="button primary" id="clock-alert-resume">Volver a ficharme</button>`);
+    this.el('clock-alert-resume').onclick=()=>{this.el('modal').close();this.action('resume');};
+    this.el('clock-alert-finish').onclick=()=>{this.el('modal').close();this.action('finish');};
+  }
   recommend(){
     if(!this.cloud?.clockReady||this.cloud.clockStatus||this.promptedFor===this.cloud.user?.id||!this.modal)return;
     this.promptedFor=this.cloud.user?.id;
