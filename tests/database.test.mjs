@@ -67,8 +67,8 @@ test('Supabase: instalación, permisos, cálculos y aislamiento de empleados',as
   await db.exec('set role service_role;');assert.equal((await db.query("select bennys_access_limit('fixture',60,2) as allowed")).rows[0].allowed,true);
 
   await db.exec('reset role;');
-  await db.exec(readFileSync(new URL('../supabase/cierres-caja.sql',import.meta.url),'utf8'));
-  await db.exec(readFileSync(new URL('../supabase/fichajes-y-reportes.sql',import.meta.url),'utf8'));
+  try{await db.exec(readFileSync(new URL('../supabase/cierres-caja.sql',import.meta.url),'utf8'));}catch(error){throw Error('cierres-caja.sql: '+error.message);}
+  try{await db.exec(readFileSync(new URL('../supabase/fichajes-y-reportes.sql',import.meta.url),'utf8'));}catch(error){throw Error('fichajes-y-reportes.sql: '+error.message);}
   await as(employee);
   const started=(await db.query('select * from bennys_clock_start()')).rows[0];
   assert.equal(started.status,'active');assert.equal(started.employee_id,employee);
