@@ -151,7 +151,7 @@ test('Supabase: instalación, permisos, cálculos y aislamiento de empleados',as
   const archivedTop=(await db.query('select * from bennys_clock_weekly_history()')).rows;
   assert.equal(archivedTop.length,1);
   assert.equal(archivedTop[0].employee_id,employee);
-  assert.equal(archivedTop[0].position,1);
+  assert.equal(archivedTop[0].rank_position,1);
   assert.ok(Number(archivedTop[0].worked_seconds)>0);
 
   // Los cierres antiguos deben reconstruir sus métricas desde las órdenes reales.
