@@ -1,4 +1,5 @@
 import test from 'node:test';
+import {readFileSync} from 'node:fs';
 import assert from 'node:assert/strict';
 import {CATALOG} from '../dist/catalog.js';
 import {calculate,addToOrder,receipt,frequentClients} from '../dist/core.js';
@@ -87,4 +88,10 @@ test('El informe incluye mecánicos sin ventas y reconoce órdenes históricas p
   const rows=mechanicReportMetrics([{mechanic:'Ana',status:'active',totals:{total:50,cost:20,gross:30,commission:6,net:24}}],team);
   assert.equal(rows.find(row=>row.id==='m1').total,50);
   assert.equal(rows.find(row=>row.id==='m2').count,0);
+});
+
+
+test('El bundle compilado no duplica la declaración global round',()=>{
+  const source=readFileSync(new URL('../dist/bundle.js',import.meta.url),'utf8');
+  assert.equal((source.match(/\\b(?:const|let|var|function)\\s+round\\b/g)||[]).length,1);
 });
