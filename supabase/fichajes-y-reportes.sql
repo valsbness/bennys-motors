@@ -120,6 +120,18 @@ create trigger bennys_expenses_clock_activity after insert on public.bennys_expe
 revoke all on function public.bennys_clock_start(),public.bennys_clock_status(),public.bennys_clock_resume(),public.bennys_clock_finish(),public.bennys_clock_activity() from public,anon;
 grant execute on function public.bennys_clock_start(),public.bennys_clock_status(),public.bennys_clock_resume(),public.bennys_clock_finish() to authenticated;
 
+-- Calcula solo los segundos trabajados dentro de las fechas del cierre.
+create or replace function public.bennys_clock_period_seconds(p_segments jsonb,p_status text,p_segment_start timestamptz,p_last_activity timestamptz,p_start timestamptz,p_end timestamptz)
+returns integer language sql immutable set search_path=public,pg_temp as $
+  select coalesce((
+    select sum(greatest(0,extract(epoch from (least((seg->>'ended_at')::timestamptz,p_end)-greatest((seg->>'started_at')::timestamptz,coalesce(p_start,(seg->>'started_at')::timestamptz))))::integer)
+    from jsonb_array_elements(coalesce(p_segments,'[]'::jsonb)) seg
+  ),0)+case when p_status='active' and p_segment_start is not null
+    then greatest(0,extract(epoch from (least(p_end,p_last_activity+interval '1 hour')-greatest(p_segment_start,coalesce(p_start,p_segment_start))))::integer)
+    else 0 end
+$;
+revoke all on function public.bennys_clock_period_seconds(jsonb,text,timestamptz,timestamptz,timestamptz,timestamptz) from public,anon,authenticated;
+
 -- Cada cierre conserva un informe congelado: totales del equipo, desglose por mecánico y fichajes.
 create or replace function public.bennys_close_cash(p_id uuid,p_cash_amount numeric,p_notes text default '')
 returns public.bennys_cash_closings
@@ -163,7 +175,7 @@ begin
       from public.bennys_orders o where (v_start is null or o.created_at>v_start) and o.created_at<=v_end
     ),'{}'::jsonb),
     'clock_sessions',coalesce((
-      select jsonb_agg(jsonb_build_object('id',s.id,'employee_id',s.employee_id,'employee_name',p.display_name,'started_at',s.started_at,'last_activity_at',s.last_activity_at,'status',s.status,'paused_at',s.paused_at,'ended_at',s.ended_at,'segments',s.segments,'worked_seconds',coalesce((select sum(greatest(0,extract(epoch from (least((seg->>'ended_at')::timestamptz,v_end)-greatest((seg->>'started_at')::timestamptz,coalesce(v_start,(seg->>'started_at')::timestamptz))))::integer) from jsonb_array_elements(s.segments) seg),0)+case when s.status='active' and s.segment_started_at is not null then greatest(0,extract(epoch from (least(v_end,s.last_activity_at+interval '1 hour')-greatest(s.segment_started_at,coalesce(v_start,s.segment_started_at))))::integer) else 0 end,'pause_reason',s.pause_reason) order by s.started_at)
+      select jsonb_agg(jsonb_build_object('id',s.id,'employee_id',s.employee_id,'employee_name',p.display_name,'started_at',s.started_at,'last_activity_at',s.last_activity_at,'status',s.status,'paused_at',s.paused_at,'ended_at',s.ended_at,'segments',s.segments,'worked_seconds',public.bennys_clock_period_seconds(s.segments,s.status,s.segment_started_at,s.last_activity_at,v_start,v_end),'pause_reason',s.pause_reason) order by s.started_at)
       from public.bennys_clock_sessions s left join public.bennys_profiles p on p.id=s.employee_id
       where s.started_at<=v_end and coalesce(s.ended_at,v_end)>coalesce(v_start,'-infinity'::timestamptz)
     ),'[]'::jsonb)
