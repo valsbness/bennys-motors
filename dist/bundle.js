@@ -229,7 +229,7 @@ class BennysCloud {
   constructor(onChange){
     if(!globalThis.supabase?.createClient)throw Error('No se pudo cargar el cliente de Supabase.');
     this.client=globalThis.supabase.createClient(CLOUD_CONFIG.url,CLOUD_CONFIG.publishableKey,{auth:{storageKey:'bennys-auth-v1',persistSession:true,autoRefreshToken:true,detectSessionInUrl:true}});
-    this.initialized=false;this.lastSynced=null;this.onChange=onChange;this.user=null;this.profile=null;this.ready=false;this.loading=false;this.error=null;this.version=0;this.proReady=false;this.expenses=[];this.audit=[];this.cashClosings=[];
+    this.initialized=false;this.lastSynced=null;this.onChange=onChange;this.user=null;this.profile=null;this.ready=false;this.loading=false;this.error=null;this.version=0;this.proReady=false;this.expenses=[];this.audit=[];this.cashClosings=[];this.clockReady=false;this.clockStatus=null;this.clockSessions=[];
     this.client.auth.onAuthStateChange((event,session)=>{
       if(event==='INITIAL_SESSION'||event==='SIGNED_IN'||event==='SIGNED_OUT'||event==='TOKEN_REFRESHED')setTimeout(()=>this.restore(session),0);
     });
@@ -250,7 +250,7 @@ class BennysCloud {
   async rpc(name,args={}){const {data,error}=await this.client.rpc(name,args);if(error)throw error;return Array.isArray(data)&&data.length===1?data[0]:data;}
   async restore(session){
     const user=session?.user||null;this.initialized=true;
-    if(this.user?.id!==user?.id){this.version++;this.profile=null;this.ready=false;this.expenses=[];this.audit=[];this.cashClosings=[];this.team=[];this.proReady=false;}
+    if(this.user?.id!==user?.id){this.version++;this.profile=null;this.ready=false;this.expenses=[];this.audit=[];this.cashClosings=[];this.clockReady=false;this.clockStatus=null;this.clockSessions=[];this.team=[];this.proReady=false;}
     this.user=user;
     if(!user){this.error=null;this.loading=false;this.onChange({kind:'signedout'});return;}
     await this.load();
@@ -264,10 +264,10 @@ class BennysCloud {
       if(version!==this.version||userId!==this.user?.id)return;
       this.profile=profile;this.error=null;
       if(!profile.active){this.ready=false;this.hasAdmin=await this.rpc('bennys_has_admin');if(version!==this.version||userId!==this.user?.id)return;this.loading=false;this.onChange({kind:'pending'});return;}
-      const [services,orders,team,pro]=await Promise.all([this.pages('bennys_services','id'),this.pages('bennys_orders','created_at'),profile.role==='admin'?this.pages('bennys_profiles','created_at'):Promise.resolve([]),this.loadPro(profile)]);
+      const [services,orders,team,pro,clock]=await Promise.all([this.pages('bennys_services','id'),this.pages('bennys_orders','created_at'),profile.role==='admin'?this.pages('bennys_profiles','created_at'):Promise.resolve([]),this.loadPro(profile),this.loadClock(profile)]);
       if(version!==this.version||userId!==this.user?.id)return;
       if(services.length!==23)throw Error('El tarifario del taller está incompleto.');
-      this.ready=true;this.loading=false;this.lastSynced=new Date();this.team=team;Object.assign(this,pro);this.onChange({kind:'data',profile,services,orders:orders.map(orderPayload),team,userId});
+      this.ready=true;this.loading=false;this.lastSynced=new Date();this.team=team;Object.assign(this,pro,clock);this.onChange({kind:'data',profile,services,orders:orders.map(orderPayload),team,userId});
     }catch(error){
       if(version!==this.version||userId!==this.user?.id)return;
       this.ready=false;this.loading=false;this.error=error;this.onChange({kind:'error',error});
@@ -277,6 +277,22 @@ class BennysCloud {
     try{await this.rpc('bennys_pro_version');}catch(error){if(error.code==='PGRST202')return {proReady:false,expenses:[],audit:[],cashClosings:[]};throw error;}
     const [expenses,audit,cashClosings]=profile.role==='admin'?await Promise.all([this.pages('bennys_expenses','created_at'),this.pages('bennys_audit','id'),this.pages('bennys_cash_closings','closed_at')]):[[],[],[]];
     return {proReady:true,expenses,audit,cashClosings};
+  }
+  async loadClock(profile){
+    try{
+      const clockStatus=await this.rpc('bennys_clock_status');
+      const clockSessions=await this.pages('bennys_clock_sessions','started_at');
+      return {clockReady:true,clockStatus:clockStatus||null,clockSessions};
+    }catch(error){
+      if(['PGRST202','PGRST205'].includes(error.code)||/Could not find the function|relation .* does not exist/i.test(error.message||''))return {clockReady:false,clockStatus:null,clockSessions:[]};
+      throw error;
+    }
+  }
+  async clockAction(action){
+    if(!this.isActive)throw Error('Tu cuenta no tiene acceso activo.');
+    const functions={start:'bennys_clock_start',resume:'bennys_clock_resume',finish:'bennys_clock_finish'};
+    if(!functions[action])throw Error('Acción de fichaje no válida.');
+    return this.rpc(functions[action]);
   }
   async staff(action,values){
     const {data,error}=await this.client.functions.invoke('bennys-staff',{body:{action,...values}});
@@ -592,9 +608,10 @@ class ManagementPanel{
 
 const dayKey=value=>{const d=new Date(value);return Number.isNaN(d.getTime())?'':[d.getFullYear(),String(d.getMonth()+1).padStart(2,'0'),String(d.getDate()).padStart(2,'0')].join('-');};
 const money=value=>euro(Number(value)||0);
-const dateText=value=>new Intl.DateTimeFormat('es-MX',{dateStyle:'medium',timeStyle:'short'}).format(new Date(value));
+const dateText=value=>value?new Intl.DateTimeFormat('es-MX',{dateStyle:'medium',timeStyle:'short'}).format(new Date(value)):'—';
 const dayText=value=>new Intl.DateTimeFormat('es-MX',{dateStyle:'full'}).format(new Date(value+'T12:00:00'));
 const monthText=value=>new Intl.DateTimeFormat('es-MX',{month:'long',year:'numeric'}).format(value);
+const secondsText=value=>{const n=Math.max(0,Math.floor(Number(value)||0)),h=Math.floor(n/3600),m=Math.floor(n%3600/60);return h+' h '+String(m).padStart(2,'0')+' min';};
 
 class CashPanel{
   constructor(options){Object.assign(this,options);const now=new Date();this.month=new Date(now.getFullYear(),now.getMonth(),1);this.selected=dayKey(now);this.mechanic='all';}
@@ -612,56 +629,94 @@ class CashPanel{
     ...this.expenses.map(e=>({kind:'purchase',date:e.created_at,actor:this.actor(e.created_by),label:e.description,amount:Number(e.amount)||0,status:e.status,detail:e.category})),
     ...this.closings.map(c=>({kind:'closing',date:c.closed_at,actor:this.actor(c.closed_by),label:'Cierre de caja',amount:Number(c.cash_amount)||0,status:'closed',detail:c.notes||'Cierre administrativo'}))
   ].sort((a,b)=>Date.parse(b.date)-Date.parse(a.date));}
+  closingHistory(){
+    const rows=[...this.closings].sort((a,b)=>Date.parse(b.closed_at)-Date.parse(a.closed_at));
+    return rows.length?'<section class="panel cash-history"><div class="panel-head"><div><h2>Historial de cierres</h2><p>Cada período queda guardado con sus ventas, compras y rendimiento.</p></div><span>'+rows.length+' cierres</span></div><div class="cash-history-list">'+rows.map(c=>{const s=c.snapshot||{},team=s.team_summary||{},orders=s.orders||[],purchases=s.purchases||[];return '<button type="button" class="cash-history-row" data-cash-history="'+esc(c.id)+'"><span class="cash-history-icon">'+icon('archive')+'</span><span class="cash-history-main"><strong>'+dateText(c.closed_at)+'</strong><small>'+(c.period_start?'Desde '+dateText(c.period_start):'Desde el inicio')+' · '+orders.length+' ventas · '+purchases.length+' compras</small></span><span class="cash-history-values"><strong>'+money(c.cash_amount)+'</strong><small>Ventas: '+money(team.sales||0)+'</small></span><span class="cash-history-arrow">'+icon('chevron-right')+'</span></button>';}).join('')+'</div></section>':'<section class="panel cash-history"><div class="panel-head"><div><h2>Historial de cierres</h2><p>Los informes aparecerán aquí después del primer cierre.</p></div></div><div class="cash-empty">Todavía no hay períodos cerrados.</div></section>';
+  }
+  showClosing(id){
+    if(!this.cloud?.isAdmin)return;
+    const c=this.closings.find(row=>row.id===id);if(!c)return;
+    const s=c.snapshot||{},orders=s.orders||[],purchases=s.purchases||[],staff=s.employee_summary||[],team=s.team_summary||{};
+    const totalPurchases=purchases.filter(p=>p.status==='active').reduce((n,p)=>n+Number(p.amount||0),0);
+    const report=staff.length?'<div class="table-panel cash-team-table"><table><thead><tr><th>Mecánico</th><th>Servicios</th><th>Ventas</th><th>Costo</th><th>Margen</th><th>Comisión</th><th>Taller</th></tr></thead><tbody>'+staff.map(p=>'<tr><td><strong>'+esc(p.employee_name||'Personal')+'</strong></td><td>'+Number(p.services||0)+'</td><td>'+money(p.sales)+'</td><td>'+money(p.cost)+'</td><td>'+money(p.gross)+'</td><td>'+money(p.commission)+'</td><td>'+money(p.workshop_net)+'</td></tr>').join('')+'<tr class="cash-team-total"><td><strong>TOTAL DEL EQUIPO</strong></td><td>'+Number(team.services||0)+'</td><td>'+money(team.sales)+'</td><td>'+money(team.cost)+'</td><td>'+money(team.gross)+'</td><td>'+money(team.commission)+'</td><td>'+money(team.workshop_net)+'</td></tr></tbody></table></div>':'<p class="cash-empty">No hubo ventas de mecánicos en este período.</p>';
+    const salesList=orders.length?'<div class="table-panel"><table><thead><tr><th>Fecha</th><th>Folio / Cliente</th><th>Mecánico</th><th>Estado</th><th>Total</th></tr></thead><tbody>'+orders.map(o=>{const p=o.payload||{},t=p.totals||{};return '<tr><td>'+dateText(o.created_at)+'</td><td><strong>'+esc(p.folio||'#'+o.number)+'</strong><small>'+esc(p.client||'Sin cliente')+'</small></td><td>'+esc(o.employee_name||p.mechanic||'Personal')+'</td><td>'+ (o.status==='active'?'Cobrada':'Anulada')+'</td><td>'+money(t.total)+'</td></tr>';}).join('')+'</tbody></table></div>':'<p class="cash-empty">Sin ventas registradas.</p>';
+    const purchaseList=purchases.length?'<div class="table-panel"><table><thead><tr><th>Fecha</th><th>Compra / gasto</th><th>Registrado por</th><th>Estado</th><th>Importe</th></tr></thead><tbody>'+purchases.map(p=>'<tr><td>'+dateText(p.created_at)+'</td><td><strong>'+esc(p.description)+'</strong><small>'+esc(p.category)+'</small></td><td>'+esc(p.employee_name||'Administración')+'</td><td>'+(p.status==='active'?'Activo':'Anulado')+'</td><td>'+money(p.amount)+'</td></tr>').join('')+'</tbody></table></div>':'<p class="cash-empty">Sin compras ni gastos registrados.</p>';
+    const shifts=s.clock_sessions||[],shiftList=shifts.length?'<div class="table-panel"><table><thead><tr><th>Personal</th><th>Entrada</th><th>Salida / pausa</th><th>Tiempo acumulado</th><th>Estado al cierre</th></tr></thead><tbody>'+shifts.map(row=>'<tr><td><strong>'+esc(row.employee_name||'Personal')+'</strong></td><td>'+dateText(row.started_at)+'</td><td>'+dateText(row.ended_at||row.paused_at)+'</td><td>'+secondsText(row.worked_seconds)+'</td><td>'+esc(row.status==='active'?'En jornada':row.status==='paused'?'En pausa':'Finalizado')+'</td></tr>').join('')+'</tbody></table></div>':'<p class="cash-empty">No hay fichajes guardados para este período.</p>';
+    this.modal('Informe del cierre',`<div class="cash-close-report"><p><strong>Período:</strong> ${c.period_start?dateText(c.period_start):'Inicio del historial'} — ${dateText(c.closed_at)}</p><div class="cash-summary-grid"><article class="cash-metric"><span>Caja contada</span><strong>${money(c.cash_amount)}</strong><small>Monto real ingresado</small></article><article class="cash-metric"><span>Ventas cobradas</span><strong>${money(team.sales)}</strong><small>${Number(team.services||0)} servicios</small></article><article class="cash-metric"><span>Compras y gastos</span><strong>${money(totalPurchases)}</strong><small>${purchases.length} movimientos</small></article><article class="cash-metric"><span>Movimiento neto</span><strong>${money(Number(team.sales||0)-totalPurchases)}</strong><small>Ventas menos compras</small></article></div><section><h3>Resultado conjunto del equipo</h3><div class="cash-summary-grid"><article class="cash-metric"><span>Costo de piezas</span><strong>${money(team.cost)}</strong></article><article class="cash-metric"><span>Margen bruto</span><strong>${money(team.gross)}</strong></article><article class="cash-metric"><span>Comisiones generadas</span><strong>${money(team.commission)}</strong></article><article class="cash-metric"><span>Ganancia del taller</span><strong>${money(team.workshop_net)}</strong></article></div></section><section><h3>Rendimiento individual</h3>${report}</section><section><h3>Ventas del período</h3>${salesList}</section><section><h3>Compras y gastos</h3>${purchaseList}</section><section><h3>Jornadas de trabajo</h3>${shiftList}</section><section><h3>Observaciones del cierre</h3><p>${esc(c.notes||'Sin observaciones.')}</p></section></div>`,`<button class="button secondary" data-close>Cerrar informe</button>`);
+  }
   render(){
     const root=this.el('cash-content');if(!root)return;
     if(!this.cloud?.isAdmin){root.innerHTML='';return;}
     if(!this.cloud.proReady){root.innerHTML='<div class="empty-state"><span>'+icon('lock')+'</span><h2>Configuración pendiente</h2><p>El administrador debe aplicar la actualización de cierres de caja en Supabase.</p></div>';return;}
-    const last=[...this.closings].sort((a,b)=>Date.parse(b.closed_at)-Date.parse(a.closed_at))[0];
-    const start=last?.closed_at?Date.parse(last.closed_at):0;
-    const activeOrders=this.orders.filter(o=>o.status==='active'&&Date.parse(o.date)>start);
-    const activeExpenses=this.expenses.filter(e=>e.status==='active'&&Date.parse(e.created_at)>start);
-    const sales=activeOrders.reduce((n,o)=>n+(Number(o.totals?.total)||0),0);
-    const purchases=activeExpenses.reduce((n,e)=>n+(Number(e.amount)||0),0);
+    const last=[...this.closings].sort((a,b)=>Date.parse(b.closed_at)-Date.parse(a.closed_at))[0],start=last?.closed_at?Date.parse(last.closed_at):0;
+    const activeOrders=this.orders.filter(o=>o.status==='active'&&Date.parse(o.date)>start),activeExpenses=this.expenses.filter(e=>e.status==='active'&&Date.parse(e.created_at)>start);
+    const sales=activeOrders.reduce((n,o)=>n+(Number(o.totals?.total)||0),0),purchases=activeExpenses.reduce((n,e)=>n+(Number(e.amount)||0),0);
     const reportRows=this.mechanicRows(),shown=this.mechanic==='all'?reportRows:reportRows.filter(person=>person.id===this.mechanic);
     const reportTotals=shown.reduce((sum,person)=>{for(const key of ['count','total','cost','gross','commission','net'])sum[key]=(sum[key]||0)+(Number(person[key])||0);return sum;},{});
     const mechanicOptions='<option value="all">Todo el equipo</option>'+this.team.filter(person=>person.role==='employee').sort((a,b)=>a.display_name.localeCompare(b.display_name,'es')).map(person=>'<option value="'+esc(person.id)+'" '+(this.mechanic===person.id?'selected':'')+'>'+esc(person.display_name)+'</option>').join('');
     const report=shown.length?'<div class="table-panel cash-team-table"><table><thead><tr><th>Mecánico</th><th>Servicios</th><th>Ventas</th><th>Costo de piezas</th><th>Margen bruto</th><th>Comisión generada</th><th>Ganancia del taller</th></tr></thead><tbody>'+shown.map(person=>'<tr><td><strong>'+esc(person.name)+'</strong></td><td>'+person.count+'</td><td>'+money(person.total)+'</td><td>'+money(person.cost)+'</td><td>'+money(person.gross)+'</td><td class="margin-price"><strong>'+money(person.commission)+'</strong></td><td>'+money(person.net)+'</td></tr>').join('')+(this.mechanic==='all'?'<tr class="cash-team-total"><td><strong>TOTAL DEL EQUIPO</strong></td><td>'+reportTotals.count+'</td><td>'+money(reportTotals.total)+'</td><td>'+money(reportTotals.cost)+'</td><td>'+money(reportTotals.gross)+'</td><td>'+money(reportTotals.commission)+'</td><td>'+money(reportTotals.net)+'</td></tr>':'')+'</tbody></table></div>':'<div class="cash-empty">No hay ventas de mecánicos registradas este mes.</div>';
     const first=new Date(this.month.getFullYear(),this.month.getMonth(),1),offset=(first.getDay()+6)%7,days=new Date(this.month.getFullYear(),this.month.getMonth()+1,0).getDate();
     const cells=Array.from({length:offset},()=>'<span class="cash-day blank"></span>');
-    for(let day=1;day<=days;day++){
-      const key=dayKey(new Date(this.month.getFullYear(),this.month.getMonth(),day,12)),items=this.filteredEvents().filter(e=>dayKey(e.date)===key);
-      cells.push('<button type="button" class="cash-day '+(key===this.selected?'selected':'')+(items.length?' has-events':'')+'" data-cash-day="'+key+'"><span>'+day+'</span>'+(items.length?'<i>'+items.length+'</i>':'')+'</button>');
-    }
+    for(let day=1;day<=days;day++){const key=dayKey(new Date(this.month.getFullYear(),this.month.getMonth(),day,12)),items=this.filteredEvents().filter(e=>dayKey(e.date)===key);cells.push('<button type="button" class="cash-day '+(key===this.selected?'selected':'')+(items.length?' has-events':'')+'" data-cash-day="'+key+'"><span>'+day+'</span>'+(items.length?'<i>'+items.length+'</i>':'')+'</button>');}
     const selected=this.filteredEvents().filter(e=>dayKey(e.date)===this.selected);
-    root.innerHTML=`<div class="cash-report-toolbar"><div><span class="cash-live-dot"></span><div><strong>Rendimiento de mecánicos</strong><small>Informe de ${monthText(this.month)}</small></div></div><label>Consultar<select id="cash-mechanic-filter">${mechanicOptions}</select></label></div>
-    <div class="cash-summary-grid">
-      <article class="cash-metric"><span>${this.mechanic==='all'?'Ventas del equipo':'Ventas del mecánico'}</span><strong>${money(reportTotals.total||0)}</strong><small>${reportTotals.count||0} servicios cobrados este mes</small></article>
-      <article class="cash-metric"><span>Costo de piezas</span><strong>${money(reportTotals.cost||0)}</strong><small>Costos de los servicios seleccionados</small></article>
-      <article class="cash-metric"><span>Comisión generada</span><strong>${money(reportTotals.commission||0)}</strong><small>Importe guardado en cada venta</small></article>
-      <article class="cash-metric"><span>Ganancia del taller</span><strong>${money(reportTotals.net||0)}</strong><small>Después de piezas y comisiones</small></article>
-    </div>
-    ${report}
-    <div class="cash-summary-grid">
-      <article class="cash-metric"><span>Período actual</span><strong>${last?'Desde '+dateText(last.closed_at):'Desde el inicio del historial'}</strong><small>Se reinicia únicamente al cerrar manualmente</small></article>
-      <article class="cash-metric"><span>Ventas del período</span><strong>${money(sales)}</strong><small>${activeOrders.length} ventas cobradas</small></article>
-      <article class="cash-metric"><span>Compras y gastos</span><strong>${money(purchases)}</strong><small>${activeExpenses.length} movimientos registrados</small></article>
-      <article class="cash-metric"><span>Movimientos netos</span><strong>${money(sales-purchases)}</strong><small>No sustituye el conteo real de caja</small></article>
-    </div>
-    <section class="cash-period-bar"><div><span class="cash-live-dot"></span><div><strong>Caja abierta</strong><small>El monto real lo deciden ustedes al cerrar</small></div></div><button class="button primary" id="cash-close-button"><span data-icon="lock"></span>Cerrar caja</button></section>
-    <div class="cash-layout"><section class="cash-calendar panel"><div class="panel-head"><button class="icon-button" id="cash-prev" aria-label="Mes anterior">${icon('chevron-left')}</button><h2>${monthText(this.month)}</h2><button class="icon-button" id="cash-next" aria-label="Mes siguiente">${icon('chevron-right')}</button></div><div class="cash-weekdays">${['Lun','Mar','Mié','Jue','Vie','Sáb','Dom'].map(d=>'<span>'+d+'</span>').join('')}</div><div class="cash-days">${cells.join('')}</div><p class="panel-note">Selecciona un día para consultar ventas, compras y cierres registrados.</p></section>
-    <section class="cash-day-detail panel"><div class="panel-head"><div><h2>${dayText(this.selected)}</h2><p>${selected.length} movimientos registrados</p></div></div><div class="cash-events">${selected.length?selected.map(e=>'<article class="cash-event '+e.kind+'"><span class="cash-event-icon">'+icon(e.kind==='sale'?'receipt':e.kind==='purchase'?'shopping-bag':'lock')+'</span><div><strong>'+esc(e.label)+'</strong><p>'+esc(e.detail||'')+'</p><small>'+esc(e.actor)+' · '+dateText(e.date)+'</small></div><b>'+money(e.amount)+'</b></article>').join(''):'<div class="cash-empty">No hay movimientos registrados para este día.</div>'}</div></section></div>`;
+    root.innerHTML=`<div class="cash-report-toolbar"><div><span class="cash-live-dot"></span><div><strong>Rendimiento de mecánicos</strong><small>Informe de ${monthText(this.month)}</small></div></div><label>Consultar<select id="cash-mechanic-filter">${mechanicOptions}</select></label></div><div class="cash-summary-grid"><article class="cash-metric"><span>${this.mechanic==='all'?'Ventas del equipo':'Ventas del mecánico'}</span><strong>${money(reportTotals.total||0)}</strong><small>${reportTotals.count||0} servicios cobrados este mes</small></article><article class="cash-metric"><span>Costo de piezas</span><strong>${money(reportTotals.cost||0)}</strong><small>Costos de los servicios seleccionados</small></article><article class="cash-metric"><span>Comisión generada</span><strong>${money(reportTotals.commission||0)}</strong><small>Importe guardado en cada venta</small></article><article class="cash-metric"><span>Ganancia del taller</span><strong>${money(reportTotals.net||0)}</strong><small>Después de piezas y comisiones</small></article></div>${report}<div class="cash-summary-grid"><article class="cash-metric"><span>Período actual</span><strong>${last?'Desde '+dateText(last.closed_at):'Desde el inicio del historial'}</strong><small>Se reinicia únicamente al cerrar manualmente</small></article><article class="cash-metric"><span>Ventas del período</span><strong>${money(sales)}</strong><small>${activeOrders.length} ventas cobradas</small></article><article class="cash-metric"><span>Compras y gastos</span><strong>${money(purchases)}</strong><small>${activeExpenses.length} movimientos registrados</small></article><article class="cash-metric"><span>Movimientos netos</span><strong>${money(sales-purchases)}</strong><small>No sustituye el conteo real de caja</small></article></div><section class="cash-period-bar"><div><span class="cash-live-dot"></span><div><strong>Caja abierta</strong><small>El monto real lo deciden ustedes al cerrar</small></div></div><button class="button primary" id="cash-close-button"><span data-icon="lock"></span>Cerrar caja</button></section>${this.closingHistory()}<div class="cash-layout"><section class="cash-calendar panel"><div class="panel-head"><button class="icon-button" id="cash-prev" aria-label="Mes anterior">${icon('chevron-left')}</button><h2>${monthText(this.month)}</h2><button class="icon-button" id="cash-next" aria-label="Mes siguiente">${icon('chevron-right')}</button></div><div class="cash-weekdays">${['Lun','Mar','Mié','Jue','Vie','Sáb','Dom'].map(d=>'<span>'+d+'</span>').join('')}</div><div class="cash-days">${cells.join('')}</div><p class="panel-note">Selecciona un día para consultar ventas, compras y cierres registrados.</p></section><section class="cash-day-detail panel"><div class="panel-head"><div><h2>${dayText(this.selected)}</h2><p>${selected.length} movimientos registrados</p></div></div><div class="cash-events">${selected.length?selected.map(e=>'<article class="cash-event '+e.kind+'"><span class="cash-event-icon">'+icon(e.kind==='sale'?'receipt':e.kind==='purchase'?'shopping-bag':'lock')+'</span><div><strong>'+esc(e.label)+'</strong><p>'+esc(e.detail||'')+'</p><small>'+esc(e.actor)+' · '+dateText(e.date)+'</small></div><b>'+money(e.amount)+'</b></article>').join(''):'<div class="cash-empty">No hay movimientos registrados para este día.</div>'}</div></section></div>`;
     this.el('cash-mechanic-filter').onchange=e=>{this.mechanic=e.target.value;this.render();};
     this.el('cash-prev').onclick=()=>{this.month=new Date(this.month.getFullYear(),this.month.getMonth()-1,1);this.render();};
     this.el('cash-next').onclick=()=>{this.month=new Date(this.month.getFullYear(),this.month.getMonth()+1,1);this.render();};
     root.querySelectorAll('[data-cash-day]').forEach(b=>b.onclick=()=>{this.selected=b.dataset.cashDay;this.render();});
+    root.querySelectorAll('[data-cash-history]').forEach(b=>b.onclick=()=>this.showClosing(b.dataset.cashHistory));
     this.el('cash-close-button').onclick=()=>this.close();
     root.querySelectorAll('[data-icon]').forEach(el=>el.innerHTML=icon(el.dataset.icon));
   }
   el(id){return document.getElementById(id);}
   close(){
     if(!this.cloud?.isAdmin||!this.cloud.proReady)return;
-    this.modal('Cerrar caja',`<form id="cash-close-form"><div class="cash-close-explain"><strong>El cierre es manual.</strong><p>El sistema guardará las ventas, compras y personas del período actual. Después de confirmar, el siguiente período comenzará desde $0.</p></div><label>Monto real que hay en caja ($)<input name="cash_amount" type="number" min="0" max="100000000" step="0.01" required placeholder="Escribe el monto contado"></label><label>Nota del cierre (opcional)<textarea name="notes" maxlength="500" rows="3" placeholder="Observaciones o reparto realizado…"></textarea></label><div class="form-message" id="cash-close-message" role="alert"></div></form>`,`<button class="button secondary" data-close>Cancelar</button><button class="button primary" type="submit" form="cash-close-form">Confirmar cierre</button>`);
-    this.el('cash-close-form').onsubmit=async e=>{e.preventDefault();const form=e.currentTarget,button=document.querySelector('[form="cash-close-form"]');if(button.disabled)return;const data=new FormData(form),amount=Number(data.get('cash_amount')),notes=String(data.get('notes')||'').trim();if(!Number.isFinite(amount)||amount<0||amount>100000000){this.el('cash-close-message').textContent='Escribe un monto válido.';return;}button.disabled=true;try{await this.cloud.closeCash({id:crypto.randomUUID(),cashAmount:amount,notes});await this.cloud.load();this.el('modal').close();this.toast('Cierre guardado. La nueva caja comienza desde $0.');this.render();}catch(error){this.el('cash-close-message').textContent=this.errorText(error);button.disabled=false;}};
+    this.modal('Cerrar caja',`<form id="cash-close-form"><div class="cash-close-explain"><strong>El cierre es manual.</strong><p>Se guardará un informe definitivo con fechas, ventas, compras, rendimiento individual y total del equipo, además de los fichajes. El siguiente período empezará desde cero sin borrar el historial anterior.</p></div><label>Monto real que hay en caja ($)<input name="cash_amount" type="number" min="0" max="100000000" step="0.01" required placeholder="Escribe el monto contado"></label><label>Nota del cierre (opcional)<textarea name="notes" maxlength="500" rows="3" placeholder="Observaciones o reparto realizado…"></textarea></label><div class="form-message" id="cash-close-message" role="alert"></div></form>`,`<button class="button secondary" data-close>Cancelar</button><button class="button primary" type="submit" form="cash-close-form">Confirmar cierre</button>`);
+    this.el('cash-close-form').onsubmit=async e=>{e.preventDefault();const form=e.currentTarget,button=document.querySelector('[form="cash-close-form"]');if(button.disabled)return;const data=new FormData(form),amount=Number(data.get('cash_amount')),notes=String(data.get('notes')||'').trim();if(!Number.isFinite(amount)||amount<0||amount>100000000){this.el('cash-close-message').textContent='Escribe un monto válido.';return;}button.disabled=true;try{await this.cloud.closeCash({id:crypto.randomUUID(),cashAmount:amount,notes});await this.cloud.load();this.el('modal').close();this.toast('Cierre guardado. El nuevo período comienza desde $0; el historial permanece guardado.');this.render();}catch(error){this.el('cash-close-message').textContent=this.errorText(error);button.disabled=false;}};
+  }
+}
+
+
+const duration=seconds=>{
+  const total=Math.max(0,Math.floor(Number(seconds)||0)),hours=Math.floor(total/3600),minutes=Math.floor(total%3600/60),secs=total%60;
+  return [hours,minutes,secs].map(v=>String(v).padStart(2,'0')).join(':');
+};
+const dateTime=value=>value?new Intl.DateTimeFormat('es-MX',{dateStyle:'medium',timeStyle:'short'}).format(new Date(value)):'—';
+const statusLabel=value=>value==='active'?'En jornada':value==='paused'?'En pausa':'Finalizado';
+
+class ClockPanel{
+  constructor(options){Object.assign(this,options);this.promptedFor=null;this.tick=setInterval(()=>{if(this.getCloud()?.isActive&&document.getElementById('view-clock')?.classList.contains('active'))this.renderTimer();},1000);}
+  get cloud(){return this.getCloud();}
+  el(id){return document.getElementById(id);}
+  worked(session){
+    const saved=Number(session?.accumulated_seconds)||0;
+    return saved+(session?.status==='active'&&session.segment_started_at?Math.max(0,Math.floor((Date.now()-Date.parse(session.segment_started_at))/1000)):0);
+  }
+  recommend(){
+    if(!this.cloud?.clockReady||this.cloud.clockStatus||this.promptedFor===this.cloud.user?.id||!this.modal)return;
+    this.promptedFor=this.cloud.user?.id;
+    this.modal('¿Vas a trabajar hoy?',`<div class="clock-recommend"><span class="clock-icon">${icon('timer')}</span><p>Hola, <strong>${esc(this.cloud.profile?.display_name||'mecánico')}</strong>. Si vas a comenzar tu jornada en Benny’s Motors, recuerda ficharte para registrar tu tiempo.</p><small>El fichaje solo cuenta mientras estés en jornada. Si no hay ventas o compras registradas durante una hora, se pausará y te avisará.</small></div>`,`<button class="button secondary" data-close>Ahora no</button><button class="button primary" id="clock-recommend-start">Ir a fichaje</button>`);
+    this.el('clock-recommend-start').onclick=()=>{this.el('modal').close();this.navigate('clock');};
+  }
+  render(){
+    const root=this.el('clock-content');if(!root)return;
+    if(!this.cloud?.isActive){root.innerHTML='';return;}
+    if(!this.cloud.clockReady){root.innerHTML=`<div class="empty-state"><span>${icon('lock')}</span><h2>Fichaje pendiente de configuración</h2><p>Administración debe instalar la actualización de fichajes en Supabase para activar el control de jornadas.</p></div>`;return;}
+    const session=this.cloud.clockStatus,seconds=this.worked(session),paused=session?.status==='paused',active=session?.status==='active';
+    const own=session?`<section class="clock-current panel"><div class="clock-current-head"><div><span class="clock-status-dot ${paused?'paused':active?'active':''}"></span><span class="eyebrow">${paused?'JORNADA EN PAUSA':active?'JORNADA ACTIVA':'ÚLTIMO FICHAJE'}</span><h2>${esc(this.cloud.profile?.display_name||'Mi jornada')}</h2></div><strong class="clock-timer" id="clock-timer">${duration(seconds)}</strong></div><div class="clock-meta"><span>Entrada<strong>${dateTime(session.started_at)}</strong></span><span>${paused?'Pausado desde':'Última actividad'}<strong>${dateTime(paused?session.paused_at:session.last_activity_at)}</strong></span>${session.ended_at?`<span>Salida<strong>${dateTime(session.ended_at)}</strong></span>`:''}</div>${paused?`<div class="clock-idle-alert" role="alert"><strong>${icon('alert')} Aviso de inactividad</strong><p>No se registraron ventas ni compras durante una hora, por eso el contador se pausó automáticamente. Si sigues esperando clientes, vuelve a ficharte. Si olvidaste desficharte, puedes finalizar ahora.</p><div class="clock-actions"><button class="button primary" id="clock-resume">Volver a ficharme</button><button class="button secondary" id="clock-finish">Desficharme ahora</button></div></div>`:active?`<div class="clock-active-note">El tiempo se cuenta automáticamente. Cada venta o compra registrada actualiza tu actividad.</div><div class="clock-actions"><button class="button secondary" id="clock-finish">Desficharme</button></div>`:`<div class="clock-active-note">Tu último turno quedó guardado. Puedes iniciar una nueva jornada cuando vuelvas a trabajar.</div><div class="clock-actions"><button class="button primary" id="clock-start">Ficharme</button></div>`}</section>`:`<section class="clock-current panel"><div class="clock-current-head"><div><span class="clock-status-dot"></span><span class="eyebrow">SIN FICHAJE ACTIVO</span><h2>¿Vas a comenzar tu jornada?</h2><p>Registra tu entrada antes de empezar a trabajar para llevar el control de tus horas.</p></div><span class="clock-icon">${icon('timer')}</span></div><div class="clock-actions"><button class="button primary" id="clock-start">Ficharme</button></div></section>`;
+    const sessions=[...(this.cloud.clockSessions||[])].sort((a,b)=>Date.parse(b.started_at)-Date.parse(a.started_at));
+    const history=sessions.length?`<section class="panel clock-history"><div class="panel-head"><div><h2>${this.cloud.isAdmin?'Registro de fichajes del equipo':'Mi historial de fichajes'}</h2><p>Entradas, pausas, salidas y tiempo trabajado</p></div><span>${sessions.length} registros</span></div><div class="table-panel"><table><thead><tr>${this.cloud.isAdmin?'<th>Personal</th>':''}<th>Entrada</th><th>Última actividad</th><th>Salida / pausa</th><th>Tiempo trabajado</th><th>Estado</th></tr></thead><tbody>${sessions.slice(0,100).map(row=>`<tr>${this.cloud.isAdmin?`<td><strong>${esc(this.cloud.team.find(p=>p.id===row.employee_id)?.display_name||'Personal')}</strong></td>`:''}<td>${dateTime(row.started_at)}</td><td>${dateTime(row.last_activity_at)}</td><td>${dateTime(row.ended_at||row.paused_at)}</td><td><strong>${duration(this.worked(row))}</strong></td><td><span class="status-pill ${row.status==='paused'?'cancelled':''}">${statusLabel(row.status)}</span></td></tr>`).join('')}</tbody></table></div></section>`:'<div class="cash-empty">Todavía no hay jornadas guardadas.</div>';
+    root.innerHTML=own+history;
+    this.el('clock-start')?.addEventListener('click',()=>this.action('start'));
+    this.el('clock-resume')?.addEventListener('click',()=>this.action('resume'));
+    this.el('clock-finish')?.addEventListener('click',()=>this.action('finish'));
+    root.querySelectorAll('[data-icon]').forEach(el=>el.innerHTML=icon(el.dataset.icon));
+  }
+  renderTimer(){const node=this.el('clock-timer'),session=this.cloud?.clockStatus;if(node&&session?.status==='active')node.textContent=duration(this.worked(session));}
+  async action(action){
+    const buttons=['clock-start','clock-resume','clock-finish'].map(id=>this.el(id)).filter(Boolean);buttons.forEach(button=>button.disabled=true);
+    try{await this.cloud.clockAction(action);await this.cloud.load();this.render();this.toast(action==='finish'?'Jornada finalizada y guardada.':action==='resume'?'Fichaje reanudado.':'Jornada iniciada.');}
+    catch(error){buttons.forEach(button=>button.disabled=false);this.toast(this.errorText(error));}
   }
 }
 
@@ -771,7 +826,7 @@ const validDraft=d=>d&&Array.isArray(d.items)&&d.items.every(validItem)&&typeof 
 function validState(s){return s?.version===1&&Array.isArray(s.catalog)&&(s.catalog.length===18||s.catalog.length===CATALOG.length)&&CATALOG.every(original=>s.catalog.some(i=>i.id===original.id&&amount(i.price)&&amount(i.cost)))&&Array.isArray(s.orders)&&Number.isSafeInteger(s.next)&&s.next>0&&typeof s.settings?.mechanic==='string'&&percent(s.settings.commission)&&validDraft(s.draft)&&s.orders.every(o=>validDraft(o)&&typeof o.id==='string'&&typeof o.folio==='string'&&Number.isFinite(Date.parse(o.date))&&['subtotal','cost','discount','total','gross','commission','net','units'].every(k=>Number.isFinite(o.totals?.[k]))&&['active','cancelled'].includes(o.status));}
 function sanitizeState(s){const clean={...s,catalog:CATALOG.map(original=>{const saved=s.catalog.find(i=>i.id===original.id);return {...original,...(saved?{price:saved.price,cost:saved.cost}:{})};}),draft:{...s.draft},orders:s.orders.map(o=>({...o}))};for(const row of [clean.draft,...clean.orders]){delete row.vehicle;delete row.plate;delete row.playerId;}return clean;}
 function readState(key){try{const parsed=JSON.parse(localStorage.getItem(key));return validState(parsed)?sanitizeState(parsed):defaultState();}catch{return defaultState();}}
-let state=readState(GUEST_KEY),activeKey=GUEST_KEY,cloud=null,category='all',currentView='dashboard',toastTimer,accountUser=null,management=null,gatePhase='',connectionFailed=false,pendingPresentedUser=null,cashPanel=null;
+let state=readState(GUEST_KEY),activeKey=GUEST_KEY,cloud=null,category='all',currentView='dashboard',toastTimer,accountUser=null,management=null,gatePhase='',connectionFailed=false,pendingPresentedUser=null,cashPanel=null,clockPanel=null;
 function toast(message){$('toast').textContent=message;$('toast').classList.add('visible');clearTimeout(toastTimer);toastTimer=setTimeout(()=>$('toast').classList.remove('visible'),4500);}
 function errorText(error){
   const message=error?.message||String(error);
@@ -831,7 +886,7 @@ function setView(view){
   if(view!=='dashboard')homeLayout.cancel();
   if(['team','finance','audit','cash'].includes(view)&&!cloud?.isAdmin)view='dashboard';
   currentView=view;document.querySelectorAll('.view').forEach(el=>el.classList.toggle('active',el.id==='view-'+view));document.querySelectorAll('[data-view]').forEach(el=>{const on=el.dataset.view===view;el.classList.toggle('active',on);if(on)el.setAttribute('aria-current','page');else el.removeAttribute('aria-current');});enterView(view);
-  $('breadcrumb-current').textContent=({dashboard:'Inicio',calculator:'Nueva venta',orders:cloud?.isAdmin?'Ventas del taller':'Mis ventas',catalog:'Tarifario',clients:'Clientes frecuentes',summary:'Comisiones',finance:'Gastos y resultado',team:'Equipo',audit:'Actividad',cash:'Cierres de caja'})[view];$('mobile-total').classList.toggle('no-mobile-total',view!=='calculator');
+  $('breadcrumb-current').textContent=({dashboard:'Inicio',calculator:'Nueva venta',orders:cloud?.isAdmin?'Ventas del taller':'Mis ventas',catalog:'Tarifario',clients:'Clientes frecuentes',summary:'Comisiones',finance:'Gastos y resultado',team:'Equipo',audit:'Actividad',cash:'Cierres de caja',clock:'Fichaje'})[view];$('mobile-total').classList.toggle('no-mobile-total',view!=='calculator');
   if(view==='clients')renderClients();if(view==='orders')renderOrders();if(view==='catalog')renderPrices();if(view==='team')renderTeam();if(view==='cash')cashPanel?.render();management?.render(view);history.replaceState(null,'','#'+view);closeMenu();window.scrollTo({top:0,behavior:'instant'});
 }
 // Entrada breve: solo mientras se abre la vista. Las actualizaciones posteriores de datos no vuelven a animar el contenido.
@@ -929,20 +984,20 @@ function renderCloudStatus(){
   const status=cloud?.loading?'Sincronizando…':cloud?.error?'Conexión pendiente':cloud?.isActive?'Sincronizado con el taller':cloud?.user?'Cuenta pendiente de activación':'Acceso del personal';
   $('cloud-status-text').textContent=status;$('cloud-indicator').classList.toggle('offline',!cloud?.isActive);
   $('account-label').textContent=cloud?.user?(cloud.profile?.display_name||'Mi cuenta'):'Acceder';
-  for(const id of ['team-nav','finance-nav','audit-nav','cash-nav','admin-nav-label'])$(id).hidden=!cloud?.isAdmin;$('sync-button').hidden=!cloud?.user;$('signout-button').hidden=!cloud?.user;$('layout-edit').hidden=!cloud?.isActive;
+  for(const id of ['team-nav','finance-nav','audit-nav','cash-nav','admin-nav-label'])$(id).hidden=!cloud?.isAdmin;$('clock-nav').hidden=!cloud?.isActive;$('sync-button').hidden=!cloud?.user;$('signout-button').hidden=!cloud?.user;$('layout-edit').hidden=!cloud?.isActive;
   $('account-role').textContent=cloud?.isActive?(cloud.isAdmin?'Administrador':'Mecánico'):'Perfil del mecánico';
   $('ticket-storage-text').textContent='Ventas en Supabase · Borrador local';$('sync-button').classList.toggle('syncing',Boolean(cloud?.loading));$('sync-button').setAttribute('aria-busy',String(Boolean(cloud?.loading)));$('home-workspace').textContent=cloud?.isAdmin?'Taller · Administración':'Mi actividad · Mecánico';$('last-sync').textContent=cloud?.lastSynced?'Actualizado a las '+cloud.lastSynced.toLocaleTimeString('es-MX',{hour:'2-digit',minute:'2-digit'}):'Sincronizando registros…';renderAccess();
 }
 function cloudChanged(event){
   if(event.kind==='data'){
     pendingPresentedUser=null;if(!cloud.isAdmin&&['finance','team','audit','cash'].includes(currentView))setView('dashboard');
-    if(accountUser!==event.userId){const guestDraft={...state.draft,items:state.draft.items.map(i=>({...i}))};accountUser=event.userId;activeKey='bennys-motors-v2:'+event.userId;state=readState(activeKey);if(!state.draft.items.length&&!state.draft.client)state.draft=guestDraft;}
+    const newAccount=accountUser!==event.userId;if(newAccount){const guestDraft={...state.draft,items:state.draft.items.map(i=>({...i}))};accountUser=event.userId;activeKey='bennys-motors-v2:'+event.userId;state=readState(activeKey);if(!state.draft.items.length&&!state.draft.client)state.draft=guestDraft;}
     state.catalog=CATALOG.map(original=>{const service=event.services.find(i=>i.id===original.id);return {...original,price:Number(service.price),cost:Number(service.cost)};});
     state.orders=event.orders;state.settings={mechanic:event.profile.display_name,commission:Number(event.profile.commission)};
     if(!cloud.isAdmin||!state.draft.items.length)state.draft.commission=Number(event.profile.commission);
     persist();renderDraftFields();refresh();
-    if(currentView==='orders')renderOrders();if(currentView==='catalog')renderPrices();if(currentView==='summary')renderSummary();if(currentView==='team')renderTeam();if(currentView==='cash')cashPanel?.render();
-    if($('auth-form')||$('claim-form')||$('pending-account')){$('modal').close();toast('Ya estás dentro del taller.');}
+    if(currentView==='orders')renderOrders();if(currentView==='catalog')renderPrices();if(currentView==='summary')renderSummary();if(currentView==='team')renderTeam();if(currentView==='cash')cashPanel?.render();if(currentView==='clock')clockPanel?.render();
+    if($('auth-form')||$('claim-form')||$('pending-account')){$('modal').close();toast('Ya estás dentro del taller.');}if(newAccount)clockPanel?.recommend();
   }else if(event.kind==='signedout'){homeLayout.cancel();
     pendingPresentedUser=null;
     if(accountUser){localStorage.removeItem(activeKey);accountUser=null;activeKey=GUEST_KEY;state=readState(GUEST_KEY);renderDraftFields();refresh();if(['team','finance','audit','cash'].includes(currentView))setView('dashboard');if(currentView==='orders')renderOrders();if(currentView==='summary')renderSummary();if(currentView==='catalog')renderPrices();}
@@ -998,7 +1053,7 @@ function editEmployee(id){
 }
 
 const homeLayout=new HomeLayout({getCloud:()=>cloud,toast,rerender:()=>management.dashboard()});
-management=new ManagementPanel({layout:homeLayout,getState:()=>state,getCloud:()=>cloud,modal,toast,errorText,confirmAction,exportRows:(name,rows)=>{download(name,'\uFEFF'+rows.map(row=>row.map(csvCell).join(';')).join('\r\n'),'text/csv;charset=utf-8');toast('Informe exportado.');}});cashPanel=new CashPanel({getState:()=>state,getCloud:()=>cloud,modal,toast,errorText});
+management=new ManagementPanel({layout:homeLayout,getState:()=>state,getCloud:()=>cloud,modal,toast,errorText,confirmAction,exportRows:(name,rows)=>{download(name,'\uFEFF'+rows.map(row=>row.map(csvCell).join(';')).join('\r\n'),'text/csv;charset=utf-8');toast('Informe exportado.');}});cashPanel=new CashPanel({getState:()=>state,getCloud:()=>cloud,modal,toast,errorText});clockPanel=new ClockPanel({getCloud:()=>cloud,modal,toast,errorText,navigate:setView});
 for(const id of ['orders-list','price-table','summary-content','finance-content','team-list','clients-list']){const target=$(id);if(target)new MutationObserver(()=>labelTables(target)).observe(target,{childList:true});}
 hydrateIcons();homeLayout.init();$('top-date').textContent=new Intl.DateTimeFormat('es-MX',{day:'numeric',month:'long',year:'numeric'}).format(new Date());
 $('categories').innerHTML=CATEGORIES.map(c=>`<button class="category-button ${c.id==='all'?'active':''}" data-category="${c.id}" aria-pressed="${c.id==='all'}">${icon(c.icon)}${esc(c.label)}</button>`).join('');
@@ -1029,7 +1084,7 @@ $('price-table').onchange=async e=>{const input=e.target.closest('[data-price]')
 $('restore-prices').onclick=()=>{if(!cloud?.isAdmin)return;confirmAction('Restaurar el tarifario original','Se recuperarán los precios originales de los 23 servicios del taller. Las órdenes registradas conservarán sus importes.',async()=>{let saved=0;try{for(const service of CATALOG){await cloud.saveService(service);saved++;}await cloud.load();renderPrices();toast('Tarifario original restaurado.');}catch(error){await cloud.load();renderPrices();throw Error(`${saved} tarifas restauradas. ${errorText(error)}`);}},'Restaurar tarifas');};
 $('mobile-ticket').onclick=()=>document.querySelector('.order-panel').scrollIntoView({behavior:matchMedia('(prefers-reduced-motion:reduce)').matches?'instant':'smooth',block:'start'});
 document.addEventListener('keydown',e=>{if(cloud?.isActive&&e.key==='/'&&!$('modal').open&&!['INPUT','TEXTAREA','SELECT'].includes(document.activeElement.tagName)){e.preventDefault();setView('calculator');$('service-search').focus();}});
-const hash=location.hash.slice(1);setView(['dashboard','calculator','orders','clients','catalog','summary','cash'].includes(hash)?hash:'dashboard');
+const hash=location.hash.slice(1);setView(['dashboard','calculator','orders','clients','catalog','summary','cash','clock'].includes(hash)?hash:'dashboard');
 try{cloud=new BennysCloud(cloudChanged);renderCloudStatus();}catch(error){connectionFailed=true;renderCloudStatus();authMessage(errorText(error),'error');}
 
 })();
