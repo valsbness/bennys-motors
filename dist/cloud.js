@@ -54,9 +54,9 @@ export class BennysCloud {
     }
   }
   async loadPro(profile){
-    try{await this.rpc('bennys_pro_version');}catch(error){if(error.code==='PGRST202')return {proReady:false,expenses:[],audit:[]};throw error;}
-    const [expenses,audit]=profile.role==='admin'?await Promise.all([this.pages('bennys_expenses','created_at'),this.pages('bennys_audit','id')]):[[],[]];
-    return {proReady:true,expenses,audit};
+    try{await this.rpc('bennys_pro_version');}catch(error){if(error.code==='PGRST202')return {proReady:false,expenses:[],audit:[],cashClosings:[]};throw error;}
+    const [expenses,audit,cashClosings]=profile.role==='admin'?await Promise.all([this.pages('bennys_expenses','created_at'),this.pages('bennys_audit','id'),this.pages('bennys_cash_closings','closed_at')]):[[],[],[]];
+    return {proReady:true,expenses,audit,cashClosings};
   }
   async staff(action,values){
     const {data,error}=await this.client.functions.invoke('bennys-staff',{body:{action,...values}});
