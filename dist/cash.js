@@ -41,7 +41,7 @@ export class CashPanel{
     const first=new Date(this.month.getFullYear(),this.month.getMonth(),1),offset=(first.getDay()+6)%7,days=new Date(this.month.getFullYear(),this.month.getMonth()+1,0).getDate();
     const cells=Array.from({length:offset},()=>'<span class="cash-day blank"></span>');
     for(let day=1;day<=days;day++){
-      const key=dayKey(new Date(this.month.getFullYear(),this.month.getMonth(),day,12)),items=this.events().filter(e=>dayKey(e.date)===key);
+      const key=dayKey(new Date(this.month.getFullYear(),this.month.getMonth(),day,12)),items=this.filteredEvents().filter(e=>dayKey(e.date)===key);
       cells.push('<button type="button" class="cash-day '+(key===this.selected?'selected':'')+(items.length?' has-events':'')+'" data-cash-day="'+key+'"><span>'+day+'</span>'+(items.length?'<i>'+items.length+'</i>':'')+'</button>');
     }
     const selected=this.filteredEvents().filter(e=>dayKey(e.date)===this.selected);
