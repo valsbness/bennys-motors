@@ -34,7 +34,7 @@ const CATALOG = [
   {id:'offroad', name:'Offroad', shop:'Offroad', category:'neumaticos', cost:4500, price:6500, icon:'wheel', detail:'Prepáralo para salir del asfalto.', exclusive:'neumaticos'},
   {id:'frenos', name:'Frenos cerámicos', shop:'Frenos Ceramicos', category:'extras', cost:8000, price:20000, icon:'brake', detail:'Control a la altura de la potencia.'},
   {id:'turbo', name:'Turbo charger', shop:'Turbo charger', category:'extras', cost:25000, price:35000, icon:'turbo', detail:'Ese empuje extra que se siente.'},
-  {id:'kit', name:'Kit de extras', shop:'Kit de extras', category:'extras', cost:4000, price:5000, icon:'kit', detail:'El último toque de tu preparación.'}
+  {id:'kit', name:'Kit de extras', shop:'Kit de extras', category:'extras', cost:4000, price:5000, icon:'kit', detail:'El último toque de tu preparación.'},
 
   {id:'full-v8', name:'Full Tuning V8', shop:'Full Tuning V8', category:'premium', cost:59500, price:110000, icon:'engine', detail:'Motor V8 · AWD · Semi-Slick · Frenos cerámicos.'},
   {id:'full-v12', name:'Full Tuning V12', shop:'Full Tuning V12', category:'premium', cost:319500, price:570000, icon:'engine', detail:'Motor V12 · AWD · Semi-Slick · Frenos cerámicos.'},
@@ -211,7 +211,7 @@ class BennysCloud {
   constructor(onChange){
     if(!globalThis.supabase?.createClient)throw Error('No se pudo cargar el cliente de Supabase.');
     this.client=globalThis.supabase.createClient(CLOUD_CONFIG.url,CLOUD_CONFIG.publishableKey,{auth:{storageKey:'bennys-auth-v1',persistSession:true,autoRefreshToken:true,detectSessionInUrl:true}});
-    this.initialized=false;this.lastSynced=null;this.onChange=onChange;this.user=null;this.profile=null;this.ready=false;this.loading=false;this.error=null;this.version=0;this.proReady=false;this.expenses=[];this.audit=[];
+    this.initialized=false;this.lastSynced=null;this.onChange=onChange;this.user=null;this.profile=null;this.ready=false;this.loading=false;this.error=null;this.version=0;this.proReady=false;this.expenses=[];this.audit=[];this.cashClosings=[];
     this.client.auth.onAuthStateChange((event,session)=>{
       if(event==='INITIAL_SESSION'||event==='SIGNED_IN'||event==='SIGNED_OUT'||event==='TOKEN_REFRESHED')setTimeout(()=>this.restore(session),0);
     });
@@ -232,7 +232,7 @@ class BennysCloud {
   async rpc(name,args={}){const {data,error}=await this.client.rpc(name,args);if(error)throw error;return Array.isArray(data)&&data.length===1?data[0]:data;}
   async restore(session){
     const user=session?.user||null;this.initialized=true;
-    if(this.user?.id!==user?.id){this.version++;this.profile=null;this.ready=false;this.expenses=[];this.audit=[];this.team=[];this.proReady=false;}
+    if(this.user?.id!==user?.id){this.version++;this.profile=null;this.ready=false;this.expenses=[];this.audit=[];this.cashClosings=[];this.team=[];this.proReady=false;}
     this.user=user;
     if(!user){this.error=null;this.loading=false;this.onChange({kind:'signedout'});return;}
     await this.load();
@@ -256,9 +256,9 @@ class BennysCloud {
     }
   }
   async loadPro(profile){
-    try{await this.rpc('bennys_pro_version');}catch(error){if(error.code==='PGRST202')return {proReady:false,expenses:[],audit:[]};throw error;}
-    const [expenses,audit]=profile.role==='admin'?await Promise.all([this.pages('bennys_expenses','created_at'),this.pages('bennys_audit','id')]):[[],[]];
-    return {proReady:true,expenses,audit};
+    try{await this.rpc('bennys_pro_version');}catch(error){if(error.code==='PGRST202')return {proReady:false,expenses:[],audit:[],cashClosings:[]};throw error;}
+    const [expenses,audit,cashClosings]=profile.role==='admin'?await Promise.all([this.pages('bennys_expenses','created_at'),this.pages('bennys_audit','id'),this.pages('bennys_cash_closings','closed_at')]):[[],[],[]];
+    return {proReady:true,expenses,audit,cashClosings};
   }
   async staff(action,values){
     const {data,error}=await this.client.functions.invoke('bennys-staff',{body:{action,...values}});
@@ -279,6 +279,7 @@ class BennysCloud {
   async cancelOrder(id,reason){return orderPayload(await this.rpc(this.proReady?'bennys_void_order':'bennys_cancel_order',this.proReady?{p_id:id,p_reason:reason}:{p_id:id}));}
   async createExpense(expense){return this.rpc('bennys_create_expense',{p_id:expense.id,p_description:expense.description,p_category:expense.category,p_amount:expense.amount});}
   async cancelExpense(id){return this.rpc('bennys_cancel_expense',{p_id:id});}
+  async closeCash({id,cashAmount,notes=''}){if(!this.isAdmin)throw Error('Solo administración puede cerrar la caja.');return this.rpc('bennys_close_cash',{p_id:id,p_cash_amount:cashAmount,p_notes:notes});}
   async saveService(service){return this.rpc('bennys_update_service',{p_id:service.id,p_cost:service.cost,p_price:service.price});}
   async saveEmployee(profile){return this.rpc('bennys_manage_employee',{p_id:profile.id,p_name:profile.display_name,p_role:profile.role,p_active:profile.active,p_commission:profile.commission});}
 }
@@ -497,7 +498,7 @@ const dateLabel=value=>new Intl.DateTimeFormat('es-MX',{day:'2-digit',month:'sho
 const hydrate=root=>root.querySelectorAll('[data-icon]').forEach(el=>{el.innerHTML=icon(el.dataset.icon);});
 const since=value=>{const seconds=Math.round((Date.parse(value)-Date.now())/1000),abs=Math.abs(seconds),rtf=new Intl.RelativeTimeFormat('es',{numeric:'auto'});if(abs<45)return 'justo ahora';if(abs<3600)return rtf.format(Math.round(seconds/60),'minute');if(abs<86400)return rtf.format(Math.round(seconds/3600),'hour');return rtf.format(Math.round(seconds/86400),'day');};
 const initials=name=>String(name||'?').trim().split(/\s+/).slice(0,2).map(p=>p[0]||'').join('').toUpperCase()||'?';
-const ACTIONS={venta_registrada:'Venta registrada',venta_anulada:'Venta anulada',gasto_registrado:'Gasto registrado',gasto_anulado:'Gasto anulado',empleado_actualizado:'Empleado actualizado',cuenta_solicitada:'Solicitud de acceso',tarifa_actualizada:'Tarifa actualizada'};
+const ACTIONS={venta_registrada:'Venta registrada',venta_anulada:'Venta anulada',gasto_registrado:'Gasto registrado',gasto_anulado:'Gasto anulado',empleado_actualizado:'Empleado actualizado',cuenta_solicitada:'Solicitud de acceso',tarifa_actualizada:'Tarifa actualizada',cierre_caja:'Cierre de caja realizado'};
 
 class ManagementPanel{
   constructor(options){Object.assign(this,options);}
@@ -552,11 +553,11 @@ class ManagementPanel{
     this.el('new-expense').disabled=!this.cloud.proReady;
     if(!this.cloud.proReady){this.el('finance-content').innerHTML=this.unavailable();return;}
     const period=this.el('finance-period').value,expenses=(this.cloud.expenses||[]).filter(e=>inPeriod(e.created_at,period)),total=round(expenses.filter(e=>e.status==='active').reduce((n,e)=>n+Number(e.amount),0)),m=salesMetrics(this.orders.filter(o=>inPeriod(o.date,period)));
-    this.el('finance-content').innerHTML=`<div class="kpi-grid">${stat('Ventas cobradas',euro(m.total),'Ingresos del período','wallet')}${stat('Piezas y comisiones',euro(round(m.cost+m.commission)),'Costos asociados a las ventas','wrench')}${stat('Gastos operativos',euro(total),'Gastos activos del período','clipboard')}${stat('Resultado del taller',euro(round(m.net-total)),'Ventas − piezas − comisiones − gastos','chart',true)}</div><section class="summary-panel" style="margin-bottom:22px"><h2>Desglose del resultado</h2><div class="summary-row"><span>Costo de piezas</span><strong>${euro(m.cost)}</strong></div><div class="summary-row"><span>Comisiones generadas</span><strong>${euro(m.commission)}</strong></div><p class="panel-note">Resultado estimado según las ventas y gastos registrados. No representa el saldo bancario del juego.</p></section>${expenses.length?`<div class="table-panel"><table><thead><tr><th>Fecha</th><th>Descripción</th><th>Categoría</th><th>Registrado por</th><th>Importe</th><th>Estado</th><th></th></tr></thead><tbody>${expenses.map(e=>`<tr><td>${dateLabel(e.created_at)}</td><td><strong>${esc(e.description)}</strong></td><td>${esc(e.category)}</td><td>${esc(this.cloud.team.find(p=>p.id===e.created_by)?.display_name||'Administración')}</td><td>${euro(Number(e.amount))}</td><td><span class="status-pill ${e.status==='cancelled'?'cancelled':''}">${e.status==='active'?'Activo':'Anulado'}</span></td><td>${e.status==='active'?`<button class="row-button" data-cancel-expense="${esc(e.id)}">Anular</button>`:''}</td></tr>`).join('')}</tbody></table></div>`:empty('Sin gastos en este período.','wallet')}`;
+    this.el('finance-content').innerHTML=`<div class="kpi-grid">${stat('Ventas cobradas',euro(m.total),'Ingresos del período','wallet')}${stat('Piezas y comisiones',euro(round(m.cost+m.commission)),'Costos asociados a las ventas','wrench')}${stat('Compras y gastos',euro(total),'Gastos activos del período','clipboard')}${stat('Resultado del taller',euro(round(m.net-total)),'Ventas − piezas − comisiones − gastos','chart',true)}</div><section class="summary-panel" style="margin-bottom:22px"><h2>Desglose del resultado</h2><div class="summary-row"><span>Costo de piezas</span><strong>${euro(m.cost)}</strong></div><div class="summary-row"><span>Comisiones generadas</span><strong>${euro(m.commission)}</strong></div><p class="panel-note">Resultado estimado según las ventas y gastos registrados. No representa el saldo bancario del juego.</p></section>${expenses.length?`<div class="table-panel"><table><thead><tr><th>Fecha</th><th>Descripción</th><th>Categoría</th><th>Registrado por</th><th>Importe</th><th>Estado</th><th></th></tr></thead><tbody>${expenses.map(e=>`<tr><td>${dateLabel(e.created_at)}</td><td><strong>${esc(e.description)}</strong></td><td>${esc(e.category)}</td><td>${esc(this.cloud.team.find(p=>p.id===e.created_by)?.display_name||'Administración')}</td><td>${euro(Number(e.amount))}</td><td><span class="status-pill ${e.status==='cancelled'?'cancelled':''}">${e.status==='active'?'Activo':'Anulado'}</span></td><td>${e.status==='active'?`<button class="row-button" data-cancel-expense="${esc(e.id)}">Anular</button>`:''}</td></tr>`).join('')}</tbody></table></div>`:empty('Sin gastos en este período.','wallet')}`;
   }
   newExpense(){
     if(!this.cloud?.isAdmin||!this.cloud.proReady)return;
-    this.modal('Registrar gasto',`<form id="expense-form"><label>Descripción<input name="description" maxlength="240" required placeholder="Ej. reposición de herramientas"></label><div class="form-grid"><label>Categoría<select name="category"><option>Suministros</option><option>Herramientas</option><option>Alquiler</option><option>Otros</option></select></label><label>Importe (€)<input name="amount" type="number" min="0.01" max="100000000" step="0.01" required></label></div><p class="modal-hint">Se registra a la fecha actual. Puedes anularlo conservando el historial.</p><div id="expense-message" class="form-message" role="alert"></div></form>`,`<button class="button secondary" data-close>Cancelar</button><button class="button primary" type="submit" form="expense-form">Guardar gasto</button>`);
+    this.modal('Registrar compra o gasto',`<form id="expense-form"><label>Descripción<input name="description" maxlength="240" required placeholder="Ej. reposición de herramientas"></label><div class="form-grid"><label>Categoría<select name="category"><option>Compras</option><option>Suministros</option><option>Herramientas</option><option>Alquiler</option><option>Otros</option></select></label><label>Importe (€)<input name="amount" type="number" min="0.01" max="100000000" step="0.01" required></label></div><p class="modal-hint">Se registra a la fecha actual. Puedes anularlo conservando el historial.</p><div id="expense-message" class="form-message" role="alert"></div></form>`,`<button class="button secondary" data-close>Cancelar</button><button class="button primary" type="submit" form="expense-form">Guardar gasto</button>`);
     const id=crypto.randomUUID();this.el('expense-form').onsubmit=async event=>{event.preventDefault();const form=event.currentTarget,button=document.querySelector('[form="expense-form"]');if(button.disabled)return;button.disabled=true;const values=new FormData(form);try{await this.cloud.createExpense({id,description:String(values.get('description')).trim(),category:String(values.get('category')),amount:Number(values.get('amount'))});await this.cloud.load();if(form.isConnected)this.el('modal').close();this.toast('Gasto registrado.');}catch(error){if(form.isConnected){this.el('expense-message').textContent=this.errorText(error);button.disabled=false;}}};
   }
   cancelExpense(id){if(!this.cloud?.isAdmin)return;const expense=this.cloud.expenses.find(e=>e.id===id);if(!expense)return;this.confirmAction('Anular gasto',`El gasto <strong>${esc(expense.description)}</strong> dejará de sumar en el resultado y se conservará en el historial.`,async()=>{await this.cloud.cancelExpense(id);await this.cloud.load();this.toast('Gasto anulado.');},'Anular gasto');}
@@ -568,6 +569,93 @@ class ManagementPanel{
   }
   actor(row){return this.cloud.team.find(p=>p.id===row.actor_id)?.display_name||'Sistema';}
   auditDetail(row){const d=row.details||{};return [d.label,d.client,Number.isFinite(Number(d.amount))&&d.amount!=null?euro(Number(d.amount)):null,d.reason?`Motivo: ${d.reason}`:null,d.oldPrice!=null?`Precio: ${euro(Number(d.oldPrice))} → ${euro(Number(d.price))} · Costo: ${euro(Number(d.oldCost))} → ${euro(Number(d.cost))}`:null,d.role?`Rol: ${d.role==='admin'?'Administrador':'Mecánico'} · ${d.active?'Activo':'Inactivo'} · Comisión: ${Number(d.commission)}%`:null].filter(Boolean).join(' · ')||'Cambio registrado';}
+}
+
+
+const dayKey=value=>{const d=new Date(value);return Number.isNaN(d.getTime())?'':[d.getFullYear(),String(d.getMonth()+1).padStart(2,'0'),String(d.getDate()).padStart(2,'0')].join('-');};
+const money=value=>euro(Number(value)||0);
+const dateText=value=>new Intl.DateTimeFormat('es-MX',{dateStyle:'medium',timeStyle:'short'}).format(new Date(value));
+const dayText=value=>new Intl.DateTimeFormat('es-MX',{dateStyle:'full'}).format(new Date(value+'T12:00:00'));
+const monthText=value=>new Intl.DateTimeFormat('es-MX',{month:'long',year:'numeric'}).format(value);
+const round=value=>Math.round((Number(value)||0)*100)/100;
+
+class CashPanel{
+  constructor(options){Object.assign(this,options);const now=new Date();this.month=new Date(now.getFullYear(),now.getMonth(),1);this.selected=dayKey(now);this.mechanic='all';}
+  get cloud(){return this.getCloud();}
+  get orders(){return this.getState().orders||[];}
+  get expenses(){return this.cloud?.expenses||[];}
+  get closings(){return this.cloud?.cashClosings||[];}
+  get team(){return this.cloud?.team||[];}
+  actor(id){return this.team.find(p=>p.id===id)?.display_name||'Administración';}
+  monthOrders(){const key=this.month.getFullYear()+'-'+String(this.month.getMonth()+1).padStart(2,'0');return this.orders.filter(o=>String(o.date||'').slice(0,7)===key);}
+  mechanicRows(){
+    const rows=new Map();
+    for(const p of this.team.filter(p=>p.role==='employee'))rows.set(p.id,{id:p.id,name:p.display_name||'Mecánico',count:0,total:0,cost:0,gross:0,commission:0,net:0});
+    for(const o of this.monthOrders().filter(o=>o.status==='active')){
+      const profile=this.team.find(p=>p.id===o.employeeId||p.display_name===o.mechanic),id=profile?.id||o.employeeId||o.mechanic||'unassigned';
+      if(!rows.has(id))rows.set(id,{id,name:profile?.display_name||o.mechanic||'Sin asignar',count:0,total:0,cost:0,gross:0,commission:0,net:0});
+      const row=rows.get(id),t=o.totals||{};row.count++;for(const key of ['total','cost','gross','commission','net'])row[key]=round(row[key]+(Number(t[key])||0));
+    }
+    return [...rows.values()].sort((a,b)=>b.total-a.total||a.name.localeCompare(b.name,'es'));
+  }
+  events(){return [
+    ...this.orders.map(o=>({kind:'sale',date:o.date,actor:o.mechanic||this.actor(o.employeeId),actorId:o.employeeId||this.team.find(p=>p.display_name===o.mechanic)?.id||'',client:o.client,label:o.folio||'Venta',amount:Number(o.totals?.total)||0,status:o.status,detail:['Cliente: '+(o.client||'Sin nombre'),(o.items||[]).map(i=>i.name+' × '+i.qty).join(', ')].filter(Boolean).join(' · ')})),
+    ...this.expenses.map(e=>({kind:'purchase',date:e.created_at,actor:this.actor(e.created_by),actorId:e.created_by,label:e.description,amount:Number(e.amount)||0,status:e.status,detail:e.category})),
+    ...this.closings.map(c=>({kind:'closing',date:c.closed_at,actor:this.actor(c.closed_by),actorId:c.closed_by,label:'Cierre de caja',amount:Number(c.cash_amount)||0,status:'closed',detail:c.notes||'Cierre administrativo'}))
+  ].sort((a,b)=>Date.parse(b.date)-Date.parse(a.date));}
+  filteredEvents(){return this.events().filter(e=>this.mechanic==='all'||(e.kind!=='closing'&&e.actorId===this.mechanic));}
+  render(){
+    const root=this.el('cash-content');if(!root)return;
+    if(!this.cloud?.isAdmin){root.innerHTML='';return;}
+    if(!this.cloud.proReady){root.innerHTML='<div class="empty-state"><span>'+icon('lock')+'</span><h2>Configuración pendiente</h2><p>El administrador debe aplicar la actualización de cierres de caja en Supabase.</p></div>';return;}
+    const last=[...this.closings].sort((a,b)=>Date.parse(b.closed_at)-Date.parse(a.closed_at))[0];
+    const start=last?.closed_at?Date.parse(last.closed_at):0;
+    const activeOrders=this.orders.filter(o=>o.status==='active'&&Date.parse(o.date)>start);
+    const activeExpenses=this.expenses.filter(e=>e.status==='active'&&Date.parse(e.created_at)>start);
+    const sales=activeOrders.reduce((n,o)=>n+(Number(o.totals?.total)||0),0);
+    const purchases=activeExpenses.reduce((n,e)=>n+(Number(e.amount)||0),0);
+    const rows=this.mechanicRows(),shown=this.mechanic==='all'?rows:rows.filter(p=>p.id===this.mechanic);
+    const totals=shown.reduce((a,p)=>{for(const k of ['count','total','cost','gross','commission','net'])a[k]=round(a[k]+p[k]);return a;},{count:0,total:0,cost:0,gross:0,commission:0,net:0});
+    const options='<option value="all">Todo el equipo</option>'+this.team.filter(p=>p.role==='employee').sort((a,b)=>a.display_name.localeCompare(b.display_name,'es')).map(p=>'<option value="'+esc(p.id)+'" '+(this.mechanic===p.id?'selected':'')+'>'+esc(p.display_name)+'</option>').join('');
+    const first=new Date(this.month.getFullYear(),this.month.getMonth(),1),offset=(first.getDay()+6)%7,days=new Date(this.month.getFullYear(),this.month.getMonth()+1,0).getDate();
+    const cells=Array.from({length:offset},()=>'<span class="cash-day blank"></span>');
+    const events=this.filteredEvents();
+    for(let day=1;day<=days;day++){
+      const key=dayKey(new Date(this.month.getFullYear(),this.month.getMonth(),day,12)),items=events.filter(e=>dayKey(e.date)===key);
+      cells.push('<button type="button" class="cash-day '+(key===this.selected?'selected':'')+(items.length?' has-events':'')+'" data-cash-day="'+key+'"><span>'+day+'</span>'+(items.length?'<i>'+items.length+'</i>':'')+'</button>');
+    }
+    const selected=events.filter(e=>dayKey(e.date)===this.selected);
+    const report=shown.length?'<div class="table-panel cash-team-table"><table><thead><tr><th>Mecánico</th><th>Servicios</th><th>Ventas</th><th>Costo de piezas</th><th>Margen bruto</th><th>Comisión generada</th><th>Ganancia del taller</th></tr></thead><tbody>'+shown.map(p=>'<tr><td><strong>'+esc(p.name)+'</strong></td><td>'+p.count+'</td><td>'+money(p.total)+'</td><td>'+money(p.cost)+'</td><td>'+money(p.gross)+'</td><td class="margin-price"><strong>'+money(p.commission)+'</strong></td><td>'+money(p.net)+'</td></tr>').join('')+(this.mechanic==='all'?'<tr class="cash-team-total"><td><strong>TOTAL DEL EQUIPO</strong></td><td>'+totals.count+'</td><td>'+money(totals.total)+'</td><td>'+money(totals.cost)+'</td><td>'+money(totals.gross)+'</td><td>'+money(totals.commission)+'</td><td>'+money(totals.net)+'</td></tr>':'')+'</tbody></table></div>':'<div class="cash-empty">No hay mecánicos registrados para mostrar.</div>';
+    root.innerHTML=`<div class="cash-report-toolbar"><div><span class="cash-live-dot"></span><div><strong>Rendimiento de mecánicos</strong><small>Informe de ventas de ${monthText(this.month)}</small></div></div><label>Consultar<select id="cash-mechanic-filter">${options}</select></label></div>
+    <div class="cash-summary-grid">
+      <article class="cash-metric"><span>${this.mechanic==='all'?'Ventas del equipo':'Ventas del mecánico'}</span><strong>${money(totals.total)}</strong><small>${totals.count} servicios cobrados este mes</small></article>
+      <article class="cash-metric"><span>Costo de piezas</span><strong>${money(totals.cost)}</strong><small>Costos asociados a sus ventas</small></article>
+      <article class="cash-metric"><span>Comisión generada</span><strong>${money(totals.commission)}</strong><small>Calculada con el porcentaje asignado</small></article>
+      <article class="cash-metric"><span>Ganancia del taller</span><strong>${money(totals.net)}</strong><small>Después de piezas y comisiones</small></article>
+    </div>
+    ${report}
+    <div class="cash-period-bar"><div><span class="cash-live-dot"></span><div><strong>Caja abierta</strong><small>El monto real lo deciden ustedes al cerrar</small></div></div><button class="button primary" id="cash-close-button"><span data-icon="lock"></span>Cerrar caja</button></div>
+    <div class="cash-summary-grid">
+      <article class="cash-metric"><span>Período actual</span><strong>${last?'Desde '+dateText(last.closed_at):'Desde el inicio del historial'}</strong><small>Se reinicia únicamente al cerrar manualmente</small></article>
+      <article class="cash-metric"><span>Ventas del período</span><strong>${money(sales)}</strong><small>${activeOrders.length} ventas cobradas</small></article>
+      <article class="cash-metric"><span>Compras y gastos</span><strong>${money(purchases)}</strong><small>${activeExpenses.length} movimientos registrados</small></article>
+      <article class="cash-metric"><span>Movimientos netos</span><strong>${money(sales-purchases)}</strong><small>No sustituye el conteo real de caja</small></article>
+    </div>
+    <div class="cash-layout"><section class="cash-calendar panel"><div class="panel-head"><button class="icon-button" id="cash-prev" aria-label="Mes anterior">${icon('chevron-left')}</button><h2>${monthText(this.month)}</h2><button class="icon-button" id="cash-next" aria-label="Mes siguiente">${icon('chevron-right')}</button></div><div class="cash-weekdays">${['Lun','Mar','Mié','Jue','Vie','Sáb','Dom'].map(d=>'<span>'+d+'</span>').join('')}</div><div class="cash-days">${cells.join('')}</div><p class="panel-note">Selecciona un día para consultar ventas, compras y cierres registrados. El filtro de mecánico también se aplica al calendario.</p></section>
+    <section class="cash-day-detail panel"><div class="panel-head"><div><h2>${dayText(this.selected)}</h2><p>${selected.length} movimientos registrados</p></div></div><div class="cash-events">${selected.length?selected.map(e=>'<article class="cash-event '+e.kind+'"><span class="cash-event-icon">'+icon(e.kind==='sale'?'receipt':e.kind==='purchase'?'shopping-bag':'lock')+'</span><div><strong>'+esc(e.label)+'</strong><p>'+esc(e.detail||'')+'</p><small>'+esc(e.actor)+' · '+dateText(e.date)+'</small></div><b>'+money(e.amount)+'</b></article>').join(''):'<div class="cash-empty">No hay movimientos registrados para este día.</div>'}</div></section></div>`;
+    this.el('cash-mechanic-filter').onchange=e=>{this.mechanic=e.target.value;this.render();};
+    this.el('cash-prev').onclick=()=>{this.month=new Date(this.month.getFullYear(),this.month.getMonth()-1,1);this.render();};
+    this.el('cash-next').onclick=()=>{this.month=new Date(this.month.getFullYear(),this.month.getMonth()+1,1);this.render();};
+    root.querySelectorAll('[data-cash-day]').forEach(b=>b.onclick=()=>{this.selected=b.dataset.cashDay;this.render();});
+    this.el('cash-close-button').onclick=()=>this.close();
+    root.querySelectorAll('[data-icon]').forEach(el=>el.innerHTML=icon(el.dataset.icon));
+  }
+  el(id){return document.getElementById(id);}
+  close(){
+    if(!this.cloud?.isAdmin||!this.cloud.proReady)return;
+    this.modal('Cerrar caja',`<form id="cash-close-form"><div class="cash-close-explain"><strong>El cierre es manual.</strong><p>El sistema guardará las ventas, compras y personas del período actual. Después de confirmar, el siguiente período comenzará desde $0.</p></div><label>Monto real que hay en caja ($)<input name="cash_amount" type="number" min="0" max="100000000" step="0.01" required placeholder="Escribe el monto contado"></label><label>Nota del cierre (opcional)<textarea name="notes" maxlength="500" rows="3" placeholder="Observaciones o reparto realizado…"></textarea></label><div class="form-message" id="cash-close-message" role="alert"></div></form>`,`<button class="button secondary" data-close>Cancelar</button><button class="button primary" type="submit" form="cash-close-form">Confirmar cierre</button>`);
+    this.el('cash-close-form').onsubmit=async e=>{e.preventDefault();const form=e.currentTarget,button=document.querySelector('[form="cash-close-form"]');if(button.disabled)return;const data=new FormData(form),amount=Number(data.get('cash_amount')),notes=String(data.get('notes')||'').trim();if(!Number.isFinite(amount)||amount<0||amount>100000000){this.el('cash-close-message').textContent='Escribe un monto válido.';return;}button.disabled=true;try{await this.cloud.closeCash({id:crypto.randomUUID(),cashAmount:amount,notes});await this.cloud.load();this.el('modal').close();this.toast('Cierre guardado. La nueva caja comienza desde $0.');this.render();}catch(error){this.el('cash-close-message').textContent=this.errorText(error);button.disabled=false;}};
+  }
 }
 
 // El ambiente (niebla, brasas, murciélagos y el emblema 3D) se puede pausar sin afectar la sincronización ni las ventas.
@@ -676,7 +764,7 @@ const validDraft=d=>d&&Array.isArray(d.items)&&d.items.every(validItem)&&typeof 
 function validState(s){return s?.version===1&&Array.isArray(s.catalog)&&(s.catalog.length===18||s.catalog.length===CATALOG.length)&&CATALOG.every(original=>s.catalog.some(i=>i.id===original.id&&amount(i.price)&&amount(i.cost)))&&Array.isArray(s.orders)&&Number.isSafeInteger(s.next)&&s.next>0&&typeof s.settings?.mechanic==='string'&&percent(s.settings.commission)&&validDraft(s.draft)&&s.orders.every(o=>validDraft(o)&&typeof o.id==='string'&&typeof o.folio==='string'&&Number.isFinite(Date.parse(o.date))&&['subtotal','cost','discount','total','gross','commission','net','units'].every(k=>Number.isFinite(o.totals?.[k]))&&['active','cancelled'].includes(o.status));}
 function sanitizeState(s){const clean={...s,catalog:CATALOG.map(original=>{const saved=s.catalog.find(i=>i.id===original.id);return {...original,...(saved?{price:saved.price,cost:saved.cost}:{})};}),draft:{...s.draft},orders:s.orders.map(o=>({...o}))};for(const row of [clean.draft,...clean.orders]){delete row.vehicle;delete row.plate;delete row.playerId;}return clean;}
 function readState(key){try{const parsed=JSON.parse(localStorage.getItem(key));return validState(parsed)?sanitizeState(parsed):defaultState();}catch{return defaultState();}}
-let state=readState(GUEST_KEY),activeKey=GUEST_KEY,cloud=null,category='all',currentView='dashboard',toastTimer,accountUser=null,management=null,gatePhase='',connectionFailed=false,pendingPresentedUser=null;
+let state=readState(GUEST_KEY),activeKey=GUEST_KEY,cloud=null,category='all',currentView='dashboard',toastTimer,accountUser=null,management=null,gatePhase='',connectionFailed=false,pendingPresentedUser=null,cashPanel=null;
 function toast(message){$('toast').textContent=message;$('toast').classList.add('visible');clearTimeout(toastTimer);toastTimer=setTimeout(()=>$('toast').classList.remove('visible'),4500);}
 function errorText(error){
   const message=error?.message||String(error);
@@ -734,10 +822,10 @@ function selectClient(key){
 function add(id){const service=state.catalog.find(i=>i.id===id);if(!service)return;const old=state.draft.items.find(i=>i.id===id),result=addToOrder(state.draft.items,service);state.draft.items=result.items;persist();refresh();if(result.replaced.length)toast(`${service.name} reemplazó ${result.replaced.map(i=>i.name).join(', ')}.`);else if(service.exclusive&&old)toast('Esta configuración ya está en la orden.');}
 function setView(view){
   if(view!=='dashboard')homeLayout.cancel();
-  if(['team','finance','audit'].includes(view)&&!cloud?.isAdmin)view='dashboard';
+  if(['team','finance','audit','cash'].includes(view)&&!cloud?.isAdmin)view='dashboard';
   currentView=view;document.querySelectorAll('.view').forEach(el=>el.classList.toggle('active',el.id==='view-'+view));document.querySelectorAll('[data-view]').forEach(el=>{const on=el.dataset.view===view;el.classList.toggle('active',on);if(on)el.setAttribute('aria-current','page');else el.removeAttribute('aria-current');});enterView(view);
-  $('breadcrumb-current').textContent=({dashboard:'Inicio',calculator:'Nueva venta',orders:cloud?.isAdmin?'Ventas del taller':'Mis ventas',catalog:'Tarifario',clients:'Clientes frecuentes',summary:'Comisiones',finance:'Gastos y resultado',team:'Equipo',audit:'Actividad'})[view];$('mobile-total').classList.toggle('no-mobile-total',view!=='calculator');
-  if(view==='clients')renderClients();if(view==='orders')renderOrders();if(view==='catalog')renderPrices();if(view==='team')renderTeam();management?.render(view);history.replaceState(null,'','#'+view);closeMenu();window.scrollTo({top:0,behavior:'instant'});
+  $('breadcrumb-current').textContent=({dashboard:'Inicio',calculator:'Nueva venta',orders:cloud?.isAdmin?'Ventas del taller':'Mis ventas',catalog:'Tarifario',clients:'Clientes frecuentes',summary:'Comisiones',finance:'Gastos y resultado',team:'Equipo',audit:'Actividad',cash:'Cierres de caja'})[view];$('mobile-total').classList.toggle('no-mobile-total',view!=='calculator');
+  if(view==='clients')renderClients();if(view==='orders')renderOrders();if(view==='catalog')renderPrices();if(view==='team')renderTeam();if(view==='cash')cashPanel?.render();management?.render(view);history.replaceState(null,'','#'+view);closeMenu();window.scrollTo({top:0,behavior:'instant'});
 }
 // Entrada breve: solo mientras se abre la vista. Las actualizaciones posteriores de datos no vuelven a animar el contenido.
 let enterTimer;
@@ -834,29 +922,29 @@ function renderCloudStatus(){
   const status=cloud?.loading?'Sincronizando…':cloud?.error?'Conexión pendiente':cloud?.isActive?'Sincronizado con el taller':cloud?.user?'Cuenta pendiente de activación':'Acceso del personal';
   $('cloud-status-text').textContent=status;$('cloud-indicator').classList.toggle('offline',!cloud?.isActive);
   $('account-label').textContent=cloud?.user?(cloud.profile?.display_name||'Mi cuenta'):'Acceder';
-  for(const id of ['team-nav','finance-nav','audit-nav','admin-nav-label'])$(id).hidden=!cloud?.isAdmin;$('sync-button').hidden=!cloud?.user;$('signout-button').hidden=!cloud?.user;$('layout-edit').hidden=!cloud?.isActive;
+  for(const id of ['team-nav','finance-nav','audit-nav','cash-nav','admin-nav-label'])$(id).hidden=!cloud?.isAdmin;$('sync-button').hidden=!cloud?.user;$('signout-button').hidden=!cloud?.user;$('layout-edit').hidden=!cloud?.isActive;
   $('account-role').textContent=cloud?.isActive?(cloud.isAdmin?'Administrador':'Mecánico'):'Perfil del mecánico';
   $('ticket-storage-text').textContent='Ventas en Supabase · Borrador local';$('sync-button').classList.toggle('syncing',Boolean(cloud?.loading));$('sync-button').setAttribute('aria-busy',String(Boolean(cloud?.loading)));$('home-workspace').textContent=cloud?.isAdmin?'Taller · Administración':'Mi actividad · Mecánico';$('last-sync').textContent=cloud?.lastSynced?'Actualizado a las '+cloud.lastSynced.toLocaleTimeString('es-MX',{hour:'2-digit',minute:'2-digit'}):'Sincronizando registros…';renderAccess();
 }
 function cloudChanged(event){
   if(event.kind==='data'){
-    pendingPresentedUser=null;if(!cloud.isAdmin&&['finance','team','audit'].includes(currentView))setView('dashboard');
+    pendingPresentedUser=null;if(!cloud.isAdmin&&['finance','team','audit','cash'].includes(currentView))setView('dashboard');
     if(accountUser!==event.userId){const guestDraft={...state.draft,items:state.draft.items.map(i=>({...i}))};accountUser=event.userId;activeKey='bennys-motors-v2:'+event.userId;state=readState(activeKey);if(!state.draft.items.length&&!state.draft.client)state.draft=guestDraft;}
     state.catalog=CATALOG.map(original=>{const service=event.services.find(i=>i.id===original.id);return {...original,price:Number(service.price),cost:Number(service.cost)};});
     state.orders=event.orders;state.settings={mechanic:event.profile.display_name,commission:Number(event.profile.commission)};
     if(!cloud.isAdmin||!state.draft.items.length)state.draft.commission=Number(event.profile.commission);
     persist();renderDraftFields();refresh();
-    if(currentView==='orders')renderOrders();if(currentView==='catalog')renderPrices();if(currentView==='summary')renderSummary();if(currentView==='team')renderTeam();
+    if(currentView==='orders')renderOrders();if(currentView==='catalog')renderPrices();if(currentView==='summary')renderSummary();if(currentView==='team')renderTeam();if(currentView==='cash')cashPanel?.render();
     if($('auth-form')||$('claim-form')||$('pending-account')){$('modal').close();toast('Ya estás dentro del taller.');}
   }else if(event.kind==='signedout'){homeLayout.cancel();
     pendingPresentedUser=null;
-    if(accountUser){localStorage.removeItem(activeKey);accountUser=null;activeKey=GUEST_KEY;state=readState(GUEST_KEY);renderDraftFields();refresh();if(['team','finance','audit'].includes(currentView))setView('dashboard');if(currentView==='orders')renderOrders();if(currentView==='summary')renderSummary();if(currentView==='catalog')renderPrices();}
+    if(accountUser){localStorage.removeItem(activeKey);accountUser=null;activeKey=GUEST_KEY;state=readState(GUEST_KEY);renderDraftFields();refresh();if(['team','finance','audit','cash'].includes(currentView))setView('dashboard');if(currentView==='orders')renderOrders();if(currentView==='summary')renderSummary();if(currentView==='catalog')renderPrices();}
   }else if(event.kind==='pending'){
-    if(accountUser){state.orders=[];state.settings={mechanic:cloud.profile?.display_name||'',commission:0};persist();refresh();if(currentView==='orders')renderOrders();if(currentView==='summary')renderSummary();if(currentView==='catalog')renderPrices();if(['team','finance','audit'].includes(currentView))setView('dashboard');}
+    if(accountUser){state.orders=[];state.settings={mechanic:cloud.profile?.display_name||'',commission:0};persist();refresh();if(currentView==='orders')renderOrders();if(currentView==='summary')renderSummary();if(currentView==='catalog')renderPrices();if(['team','finance','audit','cash'].includes(currentView))setView('dashboard');}
     if(!cloud.error&&!$('modal').open&&pendingPresentedUser!==cloud.user.id){pendingPresentedUser=cloud.user.id;openAccount();}
   }else if(event.kind==='error'){
     if($('auth-form')){authMessage(errorText(event.error),'error');setAuthBusy(false);}
-    if(currentView==='catalog')renderPrices();if(['team','finance','audit'].includes(currentView))setView('dashboard');
+    if(currentView==='catalog')renderPrices();if(['team','finance','audit','cash'].includes(currentView))setView('dashboard');
   }
   renderCloudStatus();
 }
@@ -903,7 +991,7 @@ function editEmployee(id){
 }
 
 const homeLayout=new HomeLayout({getCloud:()=>cloud,toast,rerender:()=>management.dashboard()});
-management=new ManagementPanel({layout:homeLayout,getState:()=>state,getCloud:()=>cloud,modal,toast,errorText,confirmAction,exportRows:(name,rows)=>{download(name,'\uFEFF'+rows.map(row=>row.map(csvCell).join(';')).join('\r\n'),'text/csv;charset=utf-8');toast('Informe exportado.');}});
+management=new ManagementPanel({layout:homeLayout,getState:()=>state,getCloud:()=>cloud,modal,toast,errorText,confirmAction,exportRows:(name,rows)=>{download(name,'\uFEFF'+rows.map(row=>row.map(csvCell).join(';')).join('\r\n'),'text/csv;charset=utf-8');toast('Informe exportado.');}});cashPanel=new CashPanel({getState:()=>state,getCloud:()=>cloud,modal,toast,errorText});
 for(const id of ['orders-list','price-table','summary-content','finance-content','team-list','clients-list']){const target=$(id);if(target)new MutationObserver(()=>labelTables(target)).observe(target,{childList:true});}
 hydrateIcons();homeLayout.init();$('top-date').textContent=new Intl.DateTimeFormat('es-MX',{day:'numeric',month:'long',year:'numeric'}).format(new Date());
 $('categories').innerHTML=CATEGORIES.map(c=>`<button class="category-button ${c.id==='all'?'active':''}" data-category="${c.id}" aria-pressed="${c.id==='all'}">${icon(c.icon)}${esc(c.label)}</button>`).join('');
@@ -934,7 +1022,7 @@ $('price-table').onchange=async e=>{const input=e.target.closest('[data-price]')
 $('restore-prices').onclick=()=>{if(!cloud?.isAdmin)return;confirmAction('Restaurar el tarifario original','Se recuperarán los precios originales de los 23 servicios del taller. Las órdenes registradas conservarán sus importes.',async()=>{let saved=0;try{for(const service of CATALOG){await cloud.saveService(service);saved++;}await cloud.load();renderPrices();toast('Tarifario original restaurado.');}catch(error){await cloud.load();renderPrices();throw Error(`${saved} tarifas restauradas. ${errorText(error)}`);}},'Restaurar tarifas');};
 $('mobile-ticket').onclick=()=>document.querySelector('.order-panel').scrollIntoView({behavior:matchMedia('(prefers-reduced-motion:reduce)').matches?'instant':'smooth',block:'start'});
 document.addEventListener('keydown',e=>{if(cloud?.isActive&&e.key==='/'&&!$('modal').open&&!['INPUT','TEXTAREA','SELECT'].includes(document.activeElement.tagName)){e.preventDefault();setView('calculator');$('service-search').focus();}});
-const hash=location.hash.slice(1);setView(['dashboard','calculator','orders','clients','catalog','summary'].includes(hash)?hash:'dashboard');
+const hash=location.hash.slice(1);setView(['dashboard','calculator','orders','clients','catalog','summary','cash'].includes(hash)?hash:'dashboard');
 try{cloud=new BennysCloud(cloudChanged);renderCloudStatus();}catch(error){connectionFailed=true;renderCloudStatus();authMessage(errorText(error),'error');}
 
 })();
