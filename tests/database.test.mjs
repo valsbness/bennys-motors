@@ -95,7 +95,7 @@ test('Supabase: instalación, permisos, cálculos y aislamiento de empleados',as
   assert.equal(Number(closing.snapshot.team_summary.sales),79650);
   assert.equal(closing.snapshot.employee_summary.find(p=>p.employee_id===employee).services,1);
   assert.equal(closing.snapshot.clock_sessions.length,1);
-  assert.equal(closing.snapshot.clock_sessions[0].employee_id,employee);
+  assert.equal(closing.snapshot.clock_sessions[0].employee_id,employee);assert.equal(closing.snapshot.clock_sessions[0].segments.length,2);
   assert.ok(closing.period_start===null);
   assert.equal((await db.query('select count(*)::int as n from bennys_orders')).rows[0].n,3);
   await db.close();
