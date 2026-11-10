@@ -10,11 +10,13 @@ create table if not exists public.bennys_clock_sessions (
   last_activity_at timestamptz not null default now(),
   segment_started_at timestamptz,
   accumulated_seconds integer not null default 0 check(accumulated_seconds>=0),
+  segments jsonb not null default '[]'::jsonb,
   status text not null default 'active' check(status in ('active','paused','closed')),
   paused_at timestamptz,
   ended_at timestamptz,
   pause_reason text not null default ''
 );
+alter table public.bennys_clock_sessions add column if not exists segments jsonb not null default '[]'::jsonb;
 create index if not exists bennys_clock_employee_date on public.bennys_clock_sessions(employee_id,started_at desc);
 create index if not exists bennys_clock_open on public.bennys_clock_sessions(employee_id,status) where status in ('active','paused');
 alter table public.bennys_clock_sessions enable row level security;
@@ -49,6 +51,7 @@ begin
     v_pause:=v_row.last_activity_at+interval '1 hour';
     update public.bennys_clock_sessions set
       accumulated_seconds=accumulated_seconds+greatest(0,extract(epoch from (v_pause-segment_started_at))::integer),
+      segments=segments||jsonb_build_array(jsonb_build_object('started_at',segment_started_at,'ended_at',v_pause)),
       status='paused',paused_at=v_pause,segment_started_at=null,pause_reason='inactivity'
     where id=v_row.id returning * into v_row;
     insert into public.bennys_audit(actor_id,action,entity_id,details) values(auth.uid(),'fichaje_pausa_inactividad',v_row.id::text,jsonb_build_object('paused_at',v_pause));
@@ -80,10 +83,10 @@ begin
   if not found then raise exception 'No tienes un fichaje abierto.'; end if;
   if v_row.status='active' and v_row.last_activity_at<=v_now-interval '1 hour' then
     v_pause:=v_row.last_activity_at+interval '1 hour';
-    update public.bennys_clock_sessions set accumulated_seconds=accumulated_seconds+greatest(0,extract(epoch from (v_pause-segment_started_at))::integer),status='paused',paused_at=v_pause,segment_started_at=null,pause_reason='inactivity' where id=v_row.id returning * into v_row;
+    update public.bennys_clock_sessions set accumulated_seconds=accumulated_seconds+greatest(0,extract(epoch from (v_pause-segment_started_at))::integer),segments=segments||jsonb_build_array(jsonb_build_object('started_at',segment_started_at,'ended_at',v_pause)),status='paused',paused_at=v_pause,segment_started_at=null,pause_reason='inactivity' where id=v_row.id returning * into v_row;
   end if;
   if v_row.status='active' then
-    update public.bennys_clock_sessions set accumulated_seconds=accumulated_seconds+greatest(0,extract(epoch from (v_now-segment_started_at))::integer),status='closed',ended_at=v_now,segment_started_at=null,pause_reason='' where id=v_row.id returning * into v_row;
+    update public.bennys_clock_sessions set accumulated_seconds=accumulated_seconds+greatest(0,extract(epoch from (v_now-segment_started_at))::integer),segments=segments||jsonb_build_array(jsonb_build_object('started_at',segment_started_at,'ended_at',v_now)),status='closed',ended_at=v_now,segment_started_at=null,pause_reason='' where id=v_row.id returning * into v_row;
   else
     update public.bennys_clock_sessions set status='closed',ended_at=v_now where id=v_row.id returning * into v_row;
   end if;
@@ -160,7 +163,7 @@ begin
       from public.bennys_orders o where (v_start is null or o.created_at>v_start) and o.created_at<=v_end
     ),'{}'::jsonb),
     'clock_sessions',coalesce((
-      select jsonb_agg(jsonb_build_object('id',s.id,'employee_id',s.employee_id,'employee_name',p.display_name,'started_at',s.started_at,'last_activity_at',s.last_activity_at,'status',s.status,'paused_at',s.paused_at,'ended_at',s.ended_at,'worked_seconds',s.accumulated_seconds+case when s.status='active' and s.segment_started_at is not null then greatest(0,extract(epoch from (least(v_end,s.last_activity_at+interval '1 hour')-greatest(s.segment_started_at,coalesce(v_start,s.segment_started_at))))::integer) else 0 end,'pause_reason',s.pause_reason) order by s.started_at)
+      select jsonb_agg(jsonb_build_object('id',s.id,'employee_id',s.employee_id,'employee_name',p.display_name,'started_at',s.started_at,'last_activity_at',s.last_activity_at,'status',s.status,'paused_at',s.paused_at,'ended_at',s.ended_at,'segments',s.segments,'worked_seconds',coalesce((select sum(greatest(0,extract(epoch from (least((seg->>'ended_at')::timestamptz,v_end)-greatest((seg->>'started_at')::timestamptz,coalesce(v_start,(seg->>'started_at')::timestamptz))))::integer) from jsonb_array_elements(s.segments) seg),0)+case when s.status='active' and s.segment_started_at is not null then greatest(0,extract(epoch from (least(v_end,s.last_activity_at+interval '1 hour')-greatest(s.segment_started_at,coalesce(v_start,s.segment_started_at))))::integer) else 0 end,'pause_reason',s.pause_reason) order by s.started_at)
       from public.bennys_clock_sessions s left join public.bennys_profiles p on p.id=s.employee_id
       where s.started_at<=v_end and coalesce(s.ended_at,v_end)>coalesce(v_start,'-infinity'::timestamptz)
     ),'[]'::jsonb)
