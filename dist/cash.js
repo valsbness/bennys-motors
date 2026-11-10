@@ -6,33 +6,19 @@ const money=value=>euro(Number(value)||0);
 const dateText=value=>new Intl.DateTimeFormat('es-MX',{dateStyle:'medium',timeStyle:'short'}).format(new Date(value));
 const dayText=value=>new Intl.DateTimeFormat('es-MX',{dateStyle:'full'}).format(new Date(value+'T12:00:00'));
 const monthText=value=>new Intl.DateTimeFormat('es-MX',{month:'long',year:'numeric'}).format(value);
-const round=value=>Math.round((Number(value)||0)*100)/100;
 
 export class CashPanel{
-  constructor(options){Object.assign(this,options);const now=new Date();this.month=new Date(now.getFullYear(),now.getMonth(),1);this.selected=dayKey(now);this.mechanic='all';}
+  constructor(options){Object.assign(this,options);const now=new Date();this.month=new Date(now.getFullYear(),now.getMonth(),1);this.selected=dayKey(now);}
   get cloud(){return this.getCloud();}
   get orders(){return this.getState().orders||[];}
   get expenses(){return this.cloud?.expenses||[];}
   get closings(){return this.cloud?.cashClosings||[];}
-  get team(){return this.cloud?.team||[];}
-  actor(id){return this.team.find(p=>p.id===id)?.display_name||'Administración';}
-  monthOrders(){const key=this.month.getFullYear()+'-'+String(this.month.getMonth()+1).padStart(2,'0');return this.orders.filter(o=>String(o.date||'').slice(0,7)===key);}
-  mechanicRows(){
-    const rows=new Map();
-    for(const p of this.team.filter(p=>p.role==='employee'))rows.set(p.id,{id:p.id,name:p.display_name||'Mecánico',count:0,total:0,cost:0,gross:0,commission:0,net:0});
-    for(const o of this.monthOrders().filter(o=>o.status==='active')){
-      const profile=this.team.find(p=>p.id===o.employeeId||p.display_name===o.mechanic),id=profile?.id||o.employeeId||o.mechanic||'unassigned';
-      if(!rows.has(id))rows.set(id,{id,name:profile?.display_name||o.mechanic||'Sin asignar',count:0,total:0,cost:0,gross:0,commission:0,net:0});
-      const row=rows.get(id),t=o.totals||{};row.count++;for(const key of ['total','cost','gross','commission','net'])row[key]=round(row[key]+(Number(t[key])||0));
-    }
-    return [...rows.values()].sort((a,b)=>b.total-a.total||a.name.localeCompare(b.name,'es'));
-  }
+  actor(id){return this.cloud?.team?.find(p=>p.id===id)?.display_name||'Administración';}
   events(){return [
-    ...this.orders.map(o=>({kind:'sale',date:o.date,actor:o.mechanic||this.actor(o.employeeId),actorId:o.employeeId||this.team.find(p=>p.display_name===o.mechanic)?.id||'',client:o.client,label:o.folio||'Venta',amount:Number(o.totals?.total)||0,status:o.status,detail:['Cliente: '+(o.client||'Sin nombre'),(o.items||[]).map(i=>i.name+' × '+i.qty).join(', ')].filter(Boolean).join(' · ')})),
-    ...this.expenses.map(e=>({kind:'purchase',date:e.created_at,actor:this.actor(e.created_by),actorId:e.created_by,label:e.description,amount:Number(e.amount)||0,status:e.status,detail:e.category})),
-    ...this.closings.map(c=>({kind:'closing',date:c.closed_at,actor:this.actor(c.closed_by),actorId:c.closed_by,label:'Cierre de caja',amount:Number(c.cash_amount)||0,status:'closed',detail:c.notes||'Cierre administrativo'}))
+    ...this.orders.map(o=>({kind:'sale',date:o.date,actor:o.mechanic||this.actor(o.employeeId),client:o.client,label:o.folio||'Venta',amount:Number(o.totals?.total)||0,status:o.status,detail:['Cliente: '+(o.client||'Sin nombre'),(o.items||[]).map(i=>i.name+' × '+i.qty).join(', ')].filter(Boolean).join(' · ')})),
+    ...this.expenses.map(e=>({kind:'purchase',date:e.created_at,actor:this.actor(e.created_by),label:e.description,amount:Number(e.amount)||0,status:e.status,detail:e.category})),
+    ...this.closings.map(c=>({kind:'closing',date:c.closed_at,actor:this.actor(c.closed_by),label:'Cierre de caja',amount:Number(c.cash_amount)||0,status:'closed',detail:c.notes||'Cierre administrativo'}))
   ].sort((a,b)=>Date.parse(b.date)-Date.parse(a.date));}
-  filteredEvents(){return this.events().filter(e=>this.mechanic==='all'||(e.kind!=='closing'&&e.actorId===this.mechanic));}
   render(){
     const root=this.el('cash-content');if(!root)return;
     if(!this.cloud?.isAdmin){root.innerHTML='';return;}
@@ -43,36 +29,22 @@ export class CashPanel{
     const activeExpenses=this.expenses.filter(e=>e.status==='active'&&Date.parse(e.created_at)>start);
     const sales=activeOrders.reduce((n,o)=>n+(Number(o.totals?.total)||0),0);
     const purchases=activeExpenses.reduce((n,e)=>n+(Number(e.amount)||0),0);
-    const rows=this.mechanicRows(),shown=this.mechanic==='all'?rows:rows.filter(p=>p.id===this.mechanic);
-    const totals=shown.reduce((a,p)=>{for(const k of ['count','total','cost','gross','commission','net'])a[k]=round(a[k]+p[k]);return a;},{count:0,total:0,cost:0,gross:0,commission:0,net:0});
-    const options='<option value="all">Todo el equipo</option>'+this.team.filter(p=>p.role==='employee').sort((a,b)=>a.display_name.localeCompare(b.display_name,'es')).map(p=>'<option value="'+esc(p.id)+'" '+(this.mechanic===p.id?'selected':'')+'>'+esc(p.display_name)+'</option>').join('');
     const first=new Date(this.month.getFullYear(),this.month.getMonth(),1),offset=(first.getDay()+6)%7,days=new Date(this.month.getFullYear(),this.month.getMonth()+1,0).getDate();
     const cells=Array.from({length:offset},()=>'<span class="cash-day blank"></span>');
-    const events=this.filteredEvents();
     for(let day=1;day<=days;day++){
-      const key=dayKey(new Date(this.month.getFullYear(),this.month.getMonth(),day,12)),items=events.filter(e=>dayKey(e.date)===key);
+      const key=dayKey(new Date(this.month.getFullYear(),this.month.getMonth(),day,12)),items=this.events().filter(e=>dayKey(e.date)===key);
       cells.push('<button type="button" class="cash-day '+(key===this.selected?'selected':'')+(items.length?' has-events':'')+'" data-cash-day="'+key+'"><span>'+day+'</span>'+(items.length?'<i>'+items.length+'</i>':'')+'</button>');
     }
-    const selected=events.filter(e=>dayKey(e.date)===this.selected);
-    const report=shown.length?'<div class="table-panel cash-team-table"><table><thead><tr><th>Mecánico</th><th>Servicios</th><th>Ventas</th><th>Costo de piezas</th><th>Margen bruto</th><th>Comisión generada</th><th>Ganancia del taller</th></tr></thead><tbody>'+shown.map(p=>'<tr><td><strong>'+esc(p.name)+'</strong></td><td>'+p.count+'</td><td>'+money(p.total)+'</td><td>'+money(p.cost)+'</td><td>'+money(p.gross)+'</td><td class="margin-price"><strong>'+money(p.commission)+'</strong></td><td>'+money(p.net)+'</td></tr>').join('')+(this.mechanic==='all'?'<tr class="cash-team-total"><td><strong>TOTAL DEL EQUIPO</strong></td><td>'+totals.count+'</td><td>'+money(totals.total)+'</td><td>'+money(totals.cost)+'</td><td>'+money(totals.gross)+'</td><td>'+money(totals.commission)+'</td><td>'+money(totals.net)+'</td></tr>':'')+'</tbody></table></div>':'<div class="cash-empty">No hay mecánicos registrados para mostrar.</div>';
-    root.innerHTML=`<div class="cash-report-toolbar"><div><span class="cash-live-dot"></span><div><strong>Rendimiento de mecánicos</strong><small>Informe de ventas de ${monthText(this.month)}</small></div></div><label>Consultar<select id="cash-mechanic-filter">${options}</select></label></div>
-    <div class="cash-summary-grid">
-      <article class="cash-metric"><span>${this.mechanic==='all'?'Ventas del equipo':'Ventas del mecánico'}</span><strong>${money(totals.total)}</strong><small>${totals.count} servicios cobrados este mes</small></article>
-      <article class="cash-metric"><span>Costo de piezas</span><strong>${money(totals.cost)}</strong><small>Costos asociados a sus ventas</small></article>
-      <article class="cash-metric"><span>Comisión generada</span><strong>${money(totals.commission)}</strong><small>Calculada con el porcentaje asignado</small></article>
-      <article class="cash-metric"><span>Ganancia del taller</span><strong>${money(totals.net)}</strong><small>Después de piezas y comisiones</small></article>
-    </div>
-    ${report}
-    <div class="cash-period-bar"><div><span class="cash-live-dot"></span><div><strong>Caja abierta</strong><small>El monto real lo deciden ustedes al cerrar</small></div></div><button class="button primary" id="cash-close-button"><span data-icon="lock"></span>Cerrar caja</button></div>
-    <div class="cash-summary-grid">
+    const selected=this.events().filter(e=>dayKey(e.date)===this.selected);
+    root.innerHTML=`<div class="cash-summary-grid">
       <article class="cash-metric"><span>Período actual</span><strong>${last?'Desde '+dateText(last.closed_at):'Desde el inicio del historial'}</strong><small>Se reinicia únicamente al cerrar manualmente</small></article>
       <article class="cash-metric"><span>Ventas del período</span><strong>${money(sales)}</strong><small>${activeOrders.length} ventas cobradas</small></article>
       <article class="cash-metric"><span>Compras y gastos</span><strong>${money(purchases)}</strong><small>${activeExpenses.length} movimientos registrados</small></article>
       <article class="cash-metric"><span>Movimientos netos</span><strong>${money(sales-purchases)}</strong><small>No sustituye el conteo real de caja</small></article>
     </div>
-    <div class="cash-layout"><section class="cash-calendar panel"><div class="panel-head"><button class="icon-button" id="cash-prev" aria-label="Mes anterior">${icon('chevron-left')}</button><h2>${monthText(this.month)}</h2><button class="icon-button" id="cash-next" aria-label="Mes siguiente">${icon('chevron-right')}</button></div><div class="cash-weekdays">${['Lun','Mar','Mié','Jue','Vie','Sáb','Dom'].map(d=>'<span>'+d+'</span>').join('')}</div><div class="cash-days">${cells.join('')}</div><p class="panel-note">Selecciona un día para consultar ventas, compras y cierres registrados. El filtro de mecánico también se aplica al calendario.</p></section>
+    <section class="cash-period-bar"><div><span class="cash-live-dot"></span><div><strong>Caja abierta</strong><small>El monto real lo deciden ustedes al cerrar</small></div></div><button class="button primary" id="cash-close-button"><span data-icon="lock"></span>Cerrar caja</button></section>
+    <div class="cash-layout"><section class="cash-calendar panel"><div class="panel-head"><button class="icon-button" id="cash-prev" aria-label="Mes anterior">${icon('chevron-left')}</button><h2>${monthText(this.month)}</h2><button class="icon-button" id="cash-next" aria-label="Mes siguiente">${icon('chevron-right')}</button></div><div class="cash-weekdays">${['Lun','Mar','Mié','Jue','Vie','Sáb','Dom'].map(d=>'<span>'+d+'</span>').join('')}</div><div class="cash-days">${cells.join('')}</div><p class="panel-note">Selecciona un día para consultar ventas, compras y cierres registrados.</p></section>
     <section class="cash-day-detail panel"><div class="panel-head"><div><h2>${dayText(this.selected)}</h2><p>${selected.length} movimientos registrados</p></div></div><div class="cash-events">${selected.length?selected.map(e=>'<article class="cash-event '+e.kind+'"><span class="cash-event-icon">'+icon(e.kind==='sale'?'receipt':e.kind==='purchase'?'shopping-bag':'lock')+'</span><div><strong>'+esc(e.label)+'</strong><p>'+esc(e.detail||'')+'</p><small>'+esc(e.actor)+' · '+dateText(e.date)+'</small></div><b>'+money(e.amount)+'</b></article>').join(''):'<div class="cash-empty">No hay movimientos registrados para este día.</div>'}</div></section></div>`;
-    this.el('cash-mechanic-filter').onchange=e=>{this.mechanic=e.target.value;this.render();};
     this.el('cash-prev').onclick=()=>{this.month=new Date(this.month.getFullYear(),this.month.getMonth()-1,1);this.render();};
     this.el('cash-next').onclick=()=>{this.month=new Date(this.month.getFullYear(),this.month.getMonth()+1,1);this.render();};
     root.querySelectorAll('[data-cash-day]').forEach(b=>b.onclick=()=>{this.selected=b.dataset.cashDay;this.render();});
