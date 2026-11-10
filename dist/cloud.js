@@ -1,8 +1,8 @@
 import {CLOUD_CONFIG} from './config.js';
 
 const orderPayload = row => {
-  const {playerId,vehicle,plate,...order}=row.payload;
-  return {...order,status:row.status};
+  const {playerId,vehicle,plate,...order}=row.payload||{};
+  return {...order,id:order.id||row.id,date:order.date||row.created_at,employeeId:order.employeeId||row.employee_id||null,status:row.status||order.status};
 };
 
 export class BennysCloud {
