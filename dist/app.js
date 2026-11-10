@@ -200,7 +200,7 @@ function cloudChanged(event){
     if(!cloud.error&&!$('modal').open&&pendingPresentedUser!==cloud.user.id){pendingPresentedUser=cloud.user.id;openAccount();}
   }else if(event.kind==='error'){
     if($('auth-form')){authMessage(errorText(event.error),'error');setAuthBusy(false);}
-    if(currentView==='catalog')renderPrices();if(['team','finance','audit'].includes(currentView))setView('dashboard');
+    if(currentView==='catalog')renderPrices();if(['team','finance','audit','cash'].includes(currentView))setView('dashboard');
   }
   renderCloudStatus();
 }
