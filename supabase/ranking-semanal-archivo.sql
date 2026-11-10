@@ -113,14 +113,14 @@ begin
 end $$;
 
 create or replace function public.bennys_clock_weekly_history()
-returns table(week_start date,week_end date,employee_id uuid,employee_name text,worked_seconds bigint,position integer)
+returns table(week_start date,week_end date,employee_id uuid,employee_name text,worked_seconds bigint,rank_position integer)
 language plpgsql stable security definer set search_path=public,pg_temp as $$
 begin
   if not public.bennys_is_active() then
     raise exception 'Tu cuenta no tiene acceso activo.';
   end if;
   return query
-    select a.week_start,a.week_end,a.employee_id,a.employee_name,a.worked_seconds,a.position
+    select a.week_start,a.week_end,a.employee_id,a.employee_name,a.worked_seconds,a.position as rank_position
     from public.bennys_clock_weekly_archive a
     order by a.week_start desc,a.position asc;
 end $$;
