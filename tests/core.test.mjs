@@ -2,6 +2,7 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import {CATALOG} from '../dist/catalog.js';
 import {calculate,addToOrder,receipt,frequentClients} from '../dist/core.js';
+import {mechanicReportMetrics} from '../dist/operations.js';
 const service=id=>CATALOG.find(i=>i.id===id);
 const selected=ids=>ids.map(id=>({...service(id),qty:1}));
 test('Los 18 servicios originales conservan sus costos y precios',()=>{
@@ -66,4 +67,24 @@ test('Informes y gráfico excluyen anuladas; agrupación usa el empleado y conse
   const team=employeeMetrics(orders,[{id:'a',display_name:'Mateo'}]);assert.equal(team.length,2);assert.equal(team.find(p=>p.id==='a').name,'Mateo');assert.equal(team.find(p=>p.id==='a').commission,100);
   const points=revenueSeries(orders,'today',now);assert.equal(points.length,24);assert.equal(points[10].total,2000);assert.equal(points.reduce((n,p)=>n+p.total,0),2000);
   assert.equal(revenueSeries([], 'week',now).length,7);assert.equal(revenueSeries([], 'month',now).length,11);assert.equal(revenueSeries([], 'all',now).length,30);
+});
+
+
+test('El informe mensual agrupa ventas por ID de mecánico y conserva las comisiones registradas',()=>{
+  const team=[{id:'m1',display_name:'Ana',role:'employee',commission:20},{id:'m2',display_name:'Luis',role:'employee',commission:10}];
+  const orders=[
+    {employeeId:'m1',mechanic:'Ana',status:'active',totals:{total:100,cost:40,gross:60,commission:12,net:48}},
+    {employeeId:'m2',mechanic:'Luis',status:'active',totals:{total:200,cost:100,gross:100,commission:10,net:90}},
+    {employeeId:'m1',mechanic:'Ana',status:'cancelled',totals:{total:500,cost:0,gross:500,commission:100,net:400}}
+  ];
+  const rows=mechanicReportMetrics(orders,team);
+  assert.deepEqual(rows.map(row=>[row.id,row.count,row.total,row.cost,row.gross,row.commission,row.net]),[
+    ['m2',1,200,100,100,10,90],['m1',1,100,40,60,12,48]
+  ]);
+});
+test('El informe incluye mecánicos sin ventas y reconoce órdenes históricas por nombre',()=>{
+  const team=[{id:'m1',display_name:'Ana',role:'employee'},{id:'m2',display_name:'Luis',role:'employee'}];
+  const rows=mechanicReportMetrics([{mechanic:'Ana',status:'active',totals:{total:50,cost:20,gross:30,commission:6,net:24}}],team);
+  assert.equal(rows.find(row=>row.id==='m1').total,50);
+  assert.equal(rows.find(row=>row.id==='m2').count,0);
 });
