@@ -9,7 +9,7 @@ export class BennysCloud {
   constructor(onChange){
     if(!globalThis.supabase?.createClient)throw Error('No se pudo cargar el cliente de Supabase.');
     this.client=globalThis.supabase.createClient(CLOUD_CONFIG.url,CLOUD_CONFIG.publishableKey,{auth:{storageKey:'bennys-auth-v1',persistSession:true,autoRefreshToken:true,detectSessionInUrl:true}});
-    this.initialized=false;this.lastSynced=null;this.onChange=onChange;this.user=null;this.profile=null;this.ready=false;this.loading=false;this.error=null;this.version=0;this.proReady=false;this.expenses=[];this.audit=[];this.cashClosings=[];
+    this.initialized=false;this.lastSynced=null;this.onChange=onChange;this.user=null;this.profile=null;this.ready=false;this.loading=false;this.error=null;this.version=0;this.proReady=false;this.expenses=[];this.audit=[];this.cashClosings=[];this.clockReady=false;this.clockStatus=null;this.clockSessions=[];
     this.client.auth.onAuthStateChange((event,session)=>{
       if(event==='INITIAL_SESSION'||event==='SIGNED_IN'||event==='SIGNED_OUT'||event==='TOKEN_REFRESHED')setTimeout(()=>this.restore(session),0);
     });
@@ -30,7 +30,7 @@ export class BennysCloud {
   async rpc(name,args={}){const {data,error}=await this.client.rpc(name,args);if(error)throw error;return Array.isArray(data)&&data.length===1?data[0]:data;}
   async restore(session){
     const user=session?.user||null;this.initialized=true;
-    if(this.user?.id!==user?.id){this.version++;this.profile=null;this.ready=false;this.expenses=[];this.audit=[];this.cashClosings=[];this.team=[];this.proReady=false;}
+    if(this.user?.id!==user?.id){this.version++;this.profile=null;this.ready=false;this.expenses=[];this.audit=[];this.cashClosings=[];this.clockReady=false;this.clockStatus=null;this.clockSessions=[];this.team=[];this.proReady=false;}
     this.user=user;
     if(!user){this.error=null;this.loading=false;this.onChange({kind:'signedout'});return;}
     await this.load();
@@ -44,10 +44,10 @@ export class BennysCloud {
       if(version!==this.version||userId!==this.user?.id)return;
       this.profile=profile;this.error=null;
       if(!profile.active){this.ready=false;this.hasAdmin=await this.rpc('bennys_has_admin');if(version!==this.version||userId!==this.user?.id)return;this.loading=false;this.onChange({kind:'pending'});return;}
-      const [services,orders,team,pro]=await Promise.all([this.pages('bennys_services','id'),this.pages('bennys_orders','created_at'),profile.role==='admin'?this.pages('bennys_profiles','created_at'):Promise.resolve([]),this.loadPro(profile)]);
+      const [services,orders,team,pro,clock]=await Promise.all([this.pages('bennys_services','id'),this.pages('bennys_orders','created_at'),profile.role==='admin'?this.pages('bennys_profiles','created_at'):Promise.resolve([]),this.loadPro(profile),this.loadClock(profile)]);
       if(version!==this.version||userId!==this.user?.id)return;
       if(services.length!==23)throw Error('El tarifario del taller está incompleto.');
-      this.ready=true;this.loading=false;this.lastSynced=new Date();this.team=team;Object.assign(this,pro);this.onChange({kind:'data',profile,services,orders:orders.map(orderPayload),team,userId});
+      this.ready=true;this.loading=false;this.lastSynced=new Date();this.team=team;Object.assign(this,pro,clock);this.onChange({kind:'data',profile,services,orders:orders.map(orderPayload),team,userId});
     }catch(error){
       if(version!==this.version||userId!==this.user?.id)return;
       this.ready=false;this.loading=false;this.error=error;this.onChange({kind:'error',error});
@@ -57,6 +57,22 @@ export class BennysCloud {
     try{await this.rpc('bennys_pro_version');}catch(error){if(error.code==='PGRST202')return {proReady:false,expenses:[],audit:[],cashClosings:[]};throw error;}
     const [expenses,audit,cashClosings]=profile.role==='admin'?await Promise.all([this.pages('bennys_expenses','created_at'),this.pages('bennys_audit','id'),this.pages('bennys_cash_closings','closed_at')]):[[],[],[]];
     return {proReady:true,expenses,audit,cashClosings};
+  }
+  async loadClock(profile){
+    try{
+      const clockStatus=await this.rpc('bennys_clock_status');
+      const clockSessions=await this.pages('bennys_clock_sessions','started_at');
+      return {clockReady:true,clockStatus:clockStatus||null,clockSessions};
+    }catch(error){
+      if(['PGRST202','PGRST205'].includes(error.code)||/Could not find the function|relation .* does not exist/i.test(error.message||''))return {clockReady:false,clockStatus:null,clockSessions:[]};
+      throw error;
+    }
+  }
+  async clockAction(action){
+    if(!this.isActive)throw Error('Tu cuenta no tiene acceso activo.');
+    const functions={start:'bennys_clock_start',resume:'bennys_clock_resume',finish:'bennys_clock_finish'};
+    if(!functions[action])throw Error('Acción de fichaje no válida.');
+    return this.rpc(functions[action]);
   }
   async staff(action,values){
     const {data,error}=await this.client.functions.invoke('bennys-staff',{body:{action,...values}});
