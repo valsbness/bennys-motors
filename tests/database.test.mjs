@@ -129,6 +129,31 @@ test('Supabase: instalación, permisos, cálculos y aislamiento de empleados',as
   assert.equal(repairedWeekly[0].employee_id,employee);
   assert.ok(Number(repairedWeekly[0].worked_seconds)>0);
 
+  // El TOP 3 en vivo cambia al comenzar la semana y conserva el podio anterior.
+  await db.exec('reset role;');
+  await execSqlStatements(db,readFileSync(new URL('../supabase/ranking-semanal-archivo.sql',import.meta.url),'utf8'),'ranking-semanal-archivo.sql');
+  await db.exec(`
+    with previous_week as (
+      select date_trunc('week',timezone('America/Panama',clock_timestamp()))-interval '7 days' as local_start
+    )
+    update bennys_clock_sessions s set
+      started_at=(w.local_start at time zone 'America/Panama'),
+      ended_at=((w.local_start+interval '1 hour') at time zone 'America/Panama'),
+      status='closed',
+      segments=jsonb_build_array(jsonb_build_object(
+        'started_at',w.local_start at time zone 'America/Panama',
+        'ended_at',(w.local_start+interval '30 minutes') at time zone 'America/Panama'
+      ))
+    from previous_week w where s.employee_id='22222222-2222-4222-8222-222222222222';
+  `);
+  await as(employee);
+  assert.equal((await db.query('select * from bennys_clock_weekly_top()')).rows.length,0);
+  const archivedTop=(await db.query('select * from bennys_clock_weekly_history()')).rows;
+  assert.equal(archivedTop.length,1);
+  assert.equal(archivedTop[0].employee_id,employee);
+  assert.equal(archivedTop[0].rank_position,1);
+  assert.ok(Number(archivedTop[0].worked_seconds)>0);
+
   // Los cierres antiguos deben reconstruir sus métricas desde las órdenes reales.
   await db.exec('reset role;');
   await db.query("update bennys_cash_closings set snapshot='{}'::jsonb, period_start=null");
