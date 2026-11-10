@@ -115,5 +115,12 @@ test('Supabase: instalación, permisos, cálculos y aislamiento de empleados',as
   assert.equal(closing.snapshot.clock_sessions[0].employee_id,employee);assert.equal(closing.snapshot.clock_sessions[0].segments.length,2);
   assert.ok(closing.period_start===null);
   assert.equal((await db.query('select count(*)::int as n from bennys_orders')).rows[0].n,3);
+  await db.exec('reset role;');
+  await execSqlStatements(db,readFileSync(new URL('../supabase/ranking-semanal-fichajes.sql',import.meta.url),'utf8'),'ranking-semanal-fichajes.sql');
+  await db.query("update bennys_clock_sessions set segments=jsonb_build_array(jsonb_build_object('started_at',clock_timestamp()-interval '10 minutes','ended_at',clock_timestamp()-interval '8 minutes')) where employee_id=$1",[employee]);
+  await as(employee);
+  const weeklyTop=(await db.query('select * from bennys_clock_weekly_top()')).rows;
+  assert.equal(weeklyTop[0].employee_id,employee);
+  assert.ok(Number(weeklyTop[0].worked_seconds)>0);
   await db.close();
 });

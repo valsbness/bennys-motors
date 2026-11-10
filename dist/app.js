@@ -193,7 +193,7 @@ function cloudChanged(event){
     persist();renderDraftFields();refresh();
     if(currentView==='orders')renderOrders();if(currentView==='catalog')renderPrices();if(currentView==='summary')renderSummary();if(currentView==='team')renderTeam();if(currentView==='cash')cashPanel?.render();if(currentView==='clock')clockPanel?.render();
     if($('auth-form')||$('claim-form')||$('pending-account')){$('modal').close();toast('Ya estás dentro del taller.');}clockPanel?.notifyIdle();if(newAccount)clockPanel?.recommend();
-  }else if(event.kind==='signedout'){homeLayout.cancel();
+  }else if(event.kind==='signedout'){homeLayout.cancel();clockPanel?.syncQuick();
     pendingPresentedUser=null;
     if(accountUser){localStorage.removeItem(activeKey);accountUser=null;activeKey=GUEST_KEY;state=readState(GUEST_KEY);renderDraftFields();refresh();if(['team','finance','audit','cash','clock'].includes(currentView))setView('dashboard');if(currentView==='orders')renderOrders();if(currentView==='summary')renderSummary();if(currentView==='catalog')renderPrices();}
   }else if(event.kind==='pending'){
