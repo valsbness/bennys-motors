@@ -3,6 +3,23 @@ import assert from 'node:assert/strict';
 import {readFileSync} from 'node:fs';
 import {PGlite} from '@electric-sql/pglite';
 const sql=readFileSync(new URL('../supabase/setup.sql',import.meta.url),'utf8');
+
+async function execSqlStatements(db,source,label){
+  let start=0,dollar=false,single=false,lineComment=false,block=0,index=0;
+  for(let i=0;i<source.length;i++){
+    if(lineComment){if(source[i]==='\\n')lineComment=false;continue;}
+    if(block){if(source.slice(i,i+2)==='*/'){block--;i++;}else if(source.slice(i,i+2)==='/*'){block++;i++;}continue;}
+    if(!single&&!dollar&&source.slice(i,i+2)==='--'){lineComment=true;i++;continue;}
+    if(!single&&!dollar&&source.slice(i,i+2)==='/*'){block++;i++;continue;}
+    if(!single&&source.slice(i,i+2)==='$'){dollar=!dollar;i++;continue;}
+    if(!dollar&&source[i]==="'"){if(single&&source[i+1]==="'"){i++;continue;}single=!single;continue;}
+    if(source[i]===';'&&!dollar&&!single){
+      const statement=source.slice(start,i+1);start=i+1;if(!statement.trim())continue;index++;
+      try{await db.exec(statement);}catch(error){throw Error(label+' statement '+index+': '+error.message+' | '+statement.trim().slice(0,220));}
+    }
+  }
+  if(source.slice(start).trim())await db.exec(source.slice(start));
+}
 const admin='11111111-1111-4111-8111-111111111111',employee='22222222-2222-4222-8222-222222222222',other='33333333-3333-4333-8333-333333333333';
 test('Supabase: instalación, permisos, cálculos y aislamiento de empleados',async()=>{
   const db=new PGlite();await db.exec(`create role anon;create role authenticated;create role service_role bypassrls;create schema auth;create table auth.users(id uuid primary key,email text,raw_user_meta_data jsonb default '{}');create function auth.uid() returns uuid language sql stable as $$select nullif(current_setting('request.jwt.claim.sub',true),'')::uuid$$;grant usage on schema auth,public to authenticated,anon;grant execute on function auth.uid() to authenticated,anon;insert into auth.users values('${admin}','admin@example.invalid','{"display_name":"Admin"}'),('${employee}','empleado@example.invalid','{"display_name":"Mecánico"}'),('${other}','otro@example.invalid','{"display_name":"Otro"}');`);
@@ -67,8 +84,8 @@ test('Supabase: instalación, permisos, cálculos y aislamiento de empleados',as
   await db.exec('set role service_role;');assert.equal((await db.query("select bennys_access_limit('fixture',60,2) as allowed")).rows[0].allowed,true);
 
   await db.exec('reset role;');
-  try{await db.exec(readFileSync(new URL('../supabase/cierres-caja.sql',import.meta.url),'utf8'));}catch(error){throw Error('cierres-caja.sql: '+error.message);}
-  try{await db.exec(readFileSync(new URL('../supabase/fichajes-y-reportes.sql',import.meta.url),'utf8'));}catch(error){throw Error('fichajes-y-reportes.sql: '+error.message);}
+  await execSqlStatements(db,readFileSync(new URL('../supabase/cierres-caja.sql',import.meta.url),'utf8'),'cierres-caja.sql');
+  await execSqlStatements(db,readFileSync(new URL('../supabase/fichajes-y-reportes.sql',import.meta.url),'utf8'),'fichajes-y-reportes.sql');
   await as(employee);
   const started=(await db.query('select * from bennys_clock_start()')).rows[0];
   assert.equal(started.status,'active');assert.equal(started.employee_id,employee);
