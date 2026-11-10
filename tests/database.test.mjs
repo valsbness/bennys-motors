@@ -11,7 +11,7 @@ async function execSqlStatements(db,source,label){
     if(block){if(source.slice(i,i+2)==='*/'){block--;i++;}else if(source.slice(i,i+2)==='/*'){block++;i++;}continue;}
     if(!single&&!dollar&&source.slice(i,i+2)==='--'){lineComment=true;i++;continue;}
     if(!single&&!dollar&&source.slice(i,i+2)==='/*'){block++;i++;continue;}
-    if(!single&&source.startsWith('$',i)){dollar=!dollar;i++;continue;}
+    if(!single&&source.startsWith(String.fromCharCode(36,36),i)){dollar=!dollar;i++;continue;}
     if(!dollar&&source[i]==="'"){if(single&&source[i+1]==="'"){i++;continue;}single=!single;continue;}
     if(source[i]===';'&&!dollar&&!single){
       const statement=source.slice(start,i+1);start=i+1;if(!statement.trim())continue;index++;
