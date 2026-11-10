@@ -84,7 +84,7 @@ grant execute on function public.bennys_close_cash(uuid,numeric,text) to authent
 
 -- Actualizar la validación del registro de gastos para aceptar la categoría Compras.
 create or replace function public.bennys_create_expense(p_id uuid,p_description text,p_category text,p_amount numeric)
-returns public.bennys_expenses language plpgsql security definer set search_path=public,pg_temp as $
+returns public.bennys_expenses language plpgsql security definer set search_path=public,pg_temp as $$
 declare v_row public.bennys_expenses;
 begin
   if not public.bennys_is_admin() then raise exception 'Solo administración puede registrar compras y gastos.'; end if;
@@ -99,7 +99,7 @@ begin
   insert into public.bennys_expenses(id,created_by,description,category,amount)
   values(p_id,auth.uid(),trim(p_description),p_category,round(p_amount,2)) returning * into v_row;
   return v_row;
-end $;
+end $$;
 revoke all on function public.bennys_create_expense(uuid,text,text,numeric) from public,anon;
 grant execute on function public.bennys_create_expense(uuid,text,text,numeric) to authenticated;
 
