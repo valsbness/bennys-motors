@@ -629,3 +629,43 @@ dialog::backdrop{background:rgba(10,3,8,.72);-webkit-backdrop-filter:blur(4px);b
 @media(max-width:520px){
   .cash-day-detail .cash-events{max-height:52vh;padding-right:4px}
 }
+
+
+/* Fichaje del personal */
+.clock-current{padding:24px;margin-bottom:18px}
+.clock-current-head{display:flex;align-items:center;justify-content:space-between;gap:20px}
+.clock-current-head h2{font-size:22px;margin:7px 0}
+.clock-current-head p{color:var(--ink-2);font-size:13px;margin-top:5px}
+.clock-icon{width:54px;height:54px;display:grid;place-items:center;border:1px solid var(--line-strong);border-radius:15px;background:rgba(190,53,78,.12);color:var(--crimson-hi);font-size:24px;flex:0 0 auto}
+.clock-status-dot{display:inline-block;width:8px;height:8px;border-radius:50%;background:var(--ink-3);margin-right:8px}
+.clock-status-dot.active{background:#7bd8a8;box-shadow:0 0 12px rgba(123,216,168,.5)}
+.clock-status-dot.paused{background:#e6b65c;box-shadow:0 0 12px rgba(230,182,92,.4)}
+.clock-timer{font-size:clamp(28px,5vw,42px);font-variant-numeric:tabular-nums;letter-spacing:.04em}
+.clock-meta{display:flex;flex-wrap:wrap;gap:12px;margin:20px 0}
+.clock-meta span{flex:1;min-width:150px;padding:12px;border:1px solid var(--line);border-radius:9px;color:var(--ink-3);font-size:11px}
+.clock-meta strong{display:block;color:var(--ink);font-size:13px;margin-top:5px}
+.clock-active-note{padding:12px;border-radius:9px;background:rgba(123,216,168,.07);color:var(--ink-2);font-size:12px;margin-top:16px}
+.clock-idle-alert{margin-top:18px;padding:16px;border:1px solid rgba(230,182,92,.45);border-radius:11px;background:rgba(230,182,92,.08)}
+.clock-idle-alert>strong{display:flex;align-items:center;gap:8px;color:#e6c18d}
+.clock-idle-alert p,.clock-recommend p{font-size:13px;color:var(--ink-2);line-height:1.6;margin:8px 0}
+.clock-actions{display:flex;flex-wrap:wrap;gap:10px;margin-top:16px}
+.clock-history{padding:18px}
+.clock-history .table-panel{overflow-x:auto}
+.clock-history table{min-width:760px}
+.clock-recommend{display:flex;align-items:flex-start;gap:14px}
+.clock-recommend small{display:block;color:var(--ink-3);line-height:1.5}
+.cash-history{padding:18px;margin:0 0 18px}
+.cash-history-list{display:grid;gap:8px}
+.cash-history-row{width:100%;display:grid;grid-template-columns:36px minmax(0,1fr) auto 20px;align-items:center;gap:12px;text-align:left;padding:13px;border:1px solid var(--line);border-radius:10px;background:rgba(255,255,255,.025);color:var(--ink);cursor:pointer}
+.cash-history-row:hover{border-color:var(--line-strong);background:rgba(190,53,78,.08)}
+.cash-history-icon{width:34px;height:34px;display:grid;place-items:center;border-radius:9px;background:rgba(190,53,78,.13);color:var(--crimson-hi)}
+.cash-history-main strong,.cash-history-main small,.cash-history-values strong,.cash-history-values small{display:block}
+.cash-history-main small,.cash-history-values small{font-size:11px;color:var(--ink-3);margin-top:4px}
+.cash-history-values{text-align:right}
+.cash-history-arrow{color:var(--ink-3)}
+.cash-close-report>section{margin-top:20px}
+.cash-close-report>section>h3{font-size:14px;margin-bottom:10px}
+.cash-close-report .cash-summary-grid{margin:12px 0}
+.cash-close-report .table-panel{overflow-x:auto}
+.cash-close-report table{min-width:680px}
+@media(max-width:560px){.clock-current{padding:16px}.clock-current-head{align-items:flex-start}.clock-timer{font-size:27px}.clock-meta{gap:7px}.clock-meta span{min-width:calc(50% - 6px)}.clock-actions .button{flex:1}.cash-history-row{grid-template-columns:32px minmax(0,1fr) auto}.cash-history-arrow{display:none}.cash-history-values{font-size:12px}}

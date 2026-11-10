@@ -3,6 +3,23 @@ import assert from 'node:assert/strict';
 import {readFileSync} from 'node:fs';
 import {PGlite} from '@electric-sql/pglite';
 const sql=readFileSync(new URL('../supabase/setup.sql',import.meta.url),'utf8');
+
+async function execSqlStatements(db,source,label){
+  let start=0,dollar=false,single=false,lineComment=false,block=0,index=0;
+  for(let i=0;i<source.length;i++){
+    if(lineComment){if(source[i]==='\n')lineComment=false;continue;}
+    if(block){if(source.slice(i,i+2)==='*/'){block--;i++;}else if(source.slice(i,i+2)==='/*'){block++;i++;}continue;}
+    if(!single&&!dollar&&source.slice(i,i+2)==='--'){lineComment=true;i++;continue;}
+    if(!single&&!dollar&&source.slice(i,i+2)==='/*'){block++;i++;continue;}
+    if(!single&&source.startsWith(String.fromCharCode(36,36),i)){dollar=!dollar;i++;continue;}
+    if(!dollar&&source[i]==="'"){if(single&&source[i+1]==="'"){i++;continue;}single=!single;continue;}
+    if(source[i]===';'&&!dollar&&!single){
+      const statement=source.slice(start,i+1);start=i+1;if(!statement.trim())continue;index++;
+      try{await db.exec(statement);}catch(error){throw Error(label+' statement '+index+': '+error.message+' | '+statement.trim().slice(0,220));}
+    }
+  }
+  if(source.slice(start).trim())await db.exec(source.slice(start));
+}
 const admin='11111111-1111-4111-8111-111111111111',employee='22222222-2222-4222-8222-222222222222',other='33333333-3333-4333-8333-333333333333';
 test('Supabase: instalación, permisos, cálculos y aislamiento de empleados',async()=>{
   const db=new PGlite();await db.exec(`create role anon;create role authenticated;create role service_role bypassrls;create schema auth;create table auth.users(id uuid primary key,email text,raw_user_meta_data jsonb default '{}');create function auth.uid() returns uuid language sql stable as $$select nullif(current_setting('request.jwt.claim.sub',true),'')::uuid$$;grant usage on schema auth,public to authenticated,anon;grant execute on function auth.uid() to authenticated,anon;insert into auth.users values('${admin}','admin@example.invalid','{"display_name":"Admin"}'),('${employee}','empleado@example.invalid','{"display_name":"Mecánico"}'),('${other}','otro@example.invalid','{"display_name":"Otro"}');`);
@@ -65,5 +82,38 @@ test('Supabase: instalación, permisos, cálculos y aislamiento de empleados',as
   for(const expected of [true,true,false])assert.equal((await db.query("select bennys_access_limit('fixture',60,2) as allowed")).rows[0].allowed,expected);
   await db.exec('reset role;');await db.query("update bennys_access_limits set window_start=now()-interval '2 minutes'");
   await db.exec('set role service_role;');assert.equal((await db.query("select bennys_access_limit('fixture',60,2) as allowed")).rows[0].allowed,true);
+
+  await db.exec('reset role;');
+  await execSqlStatements(db,readFileSync(new URL('../supabase/cierres-caja.sql',import.meta.url),'utf8'),'cierres-caja.sql');
+  await execSqlStatements(db,readFileSync(new URL('../supabase/fichajes-y-reportes.sql',import.meta.url),'utf8'),'fichajes-y-reportes.sql');
+  await as(employee);
+  const started=(await db.query('select * from bennys_clock_start()')).rows[0];
+  assert.equal(started.status,'active');assert.equal(started.employee_id,employee);
+  await assert.rejects(db.query('select bennys_clock_start()'));
+  const activityBefore=started.last_activity_at;
+  await create(items,'ffffffff-ffff-4fff-8fff-ffffffffffff');
+  const afterSale=(await db.query('select last_activity_at from bennys_clock_sessions where id=$1',[started.id])).rows[0];
+  assert.ok(Date.parse(afterSale.last_activity_at)>=Date.parse(activityBefore));
+  await db.exec('reset role;');
+  await db.query("update bennys_clock_sessions set last_activity_at=clock_timestamp()-interval '61 minutes' where id=$1",[started.id]);
+  await as(employee);
+  const paused=(await db.query('select * from bennys_clock_status()')).rows[0];
+  assert.equal(paused.status,'paused');assert.equal(paused.pause_reason,'inactivity');
+  const resumed=(await db.query('select * from bennys_clock_resume()')).rows[0];
+  assert.equal(resumed.status,'active');assert.equal(resumed.pause_reason,'');
+  const finished=(await db.query('select * from bennys_clock_finish()')).rows[0];
+  assert.equal(finished.status,'closed');assert.ok(finished.ended_at);assert.ok(finished.accumulated_seconds>=0);
+  assert.equal((await db.query('select count(*)::int as n from bennys_clock_sessions where employee_id=$1',[employee])).rows[0].n,1);
+  await as(other);assert.equal((await db.query('select * from bennys_clock_sessions')).rows.length,0);
+  await as(admin);
+  const closing=(await db.query("select * from bennys_close_cash($1,1000,'Cierre de prueba')",['99999999-9999-4999-8999-999999999999'])).rows[0];
+  assert.equal(Number(closing.cash_amount),1000);
+  assert.equal(closing.snapshot.team_summary.services,1);
+  assert.equal(Number(closing.snapshot.team_summary.sales),79650);
+  assert.equal(closing.snapshot.employee_summary.find(p=>p.employee_id===employee).services,1);
+  assert.equal(closing.snapshot.clock_sessions.length,1);
+  assert.equal(closing.snapshot.clock_sessions[0].employee_id,employee);assert.equal(closing.snapshot.clock_sessions[0].segments.length,2);
+  assert.ok(closing.period_start===null);
+  assert.equal((await db.query('select count(*)::int as n from bennys_orders')).rows[0].n,3);
   await db.close();
 });
