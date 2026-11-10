@@ -30,7 +30,7 @@ export class BennysCloud {
   async rpc(name,args={}){const {data,error}=await this.client.rpc(name,args);if(error)throw error;return Array.isArray(data)&&data.length===1?data[0]:data;}
   async restore(session){
     const user=session?.user||null;this.initialized=true;
-    if(this.user?.id!==user?.id){this.version++;this.profile=null;this.ready=false;this.expenses=[];this.audit=[];this.team=[];this.proReady=false;}
+    if(this.user?.id!==user?.id){this.version++;this.profile=null;this.ready=false;this.expenses=[];this.audit=[];this.cashClosings=[];this.team=[];this.proReady=false;}
     this.user=user;
     if(!user){this.error=null;this.loading=false;this.onChange({kind:'signedout'});return;}
     await this.load();
