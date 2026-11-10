@@ -7,7 +7,7 @@ const sql=readFileSync(new URL('../supabase/setup.sql',import.meta.url),'utf8');
 async function execSqlStatements(db,source,label){
   let start=0,dollar=false,single=false,lineComment=false,block=0,index=0;
   for(let i=0;i<source.length;i++){
-    if(lineComment){if(source[i]==='\\n')lineComment=false;continue;}
+    if(lineComment){if(source[i]==='\n')lineComment=false;continue;}
     if(block){if(source.slice(i,i+2)==='*/'){block--;i++;}else if(source.slice(i,i+2)==='/*'){block++;i++;}continue;}
     if(!single&&!dollar&&source.slice(i,i+2)==='--'){lineComment=true;i++;continue;}
     if(!single&&!dollar&&source.slice(i,i+2)==='/*'){block++;i++;continue;}
