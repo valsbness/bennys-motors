@@ -66,6 +66,7 @@ test('Supabase: instalación, permisos, cálculos y aislamiento de empleados',as
   await db.exec('reset role;');await db.query("update bennys_access_limits set window_start=now()-interval '2 minutes'");
   await db.exec('set role service_role;');assert.equal((await db.query("select bennys_access_limit('fixture',60,2) as allowed")).rows[0].allowed,true);
 
+  await db.exec('reset role;');
   await db.exec(readFileSync(new URL('../supabase/cierres-caja.sql',import.meta.url),'utf8'));
   await db.exec(readFileSync(new URL('../supabase/fichajes-y-reportes.sql',import.meta.url),'utf8'));
   await as(employee);
