@@ -229,7 +229,7 @@ class BennysCloud {
   constructor(onChange){
     if(!globalThis.supabase?.createClient)throw Error('No se pudo cargar el cliente de Supabase.');
     this.client=globalThis.supabase.createClient(CLOUD_CONFIG.url,CLOUD_CONFIG.publishableKey,{auth:{storageKey:'bennys-auth-v1',persistSession:true,autoRefreshToken:true,detectSessionInUrl:true}});
-    this.initialized=false;this.lastSynced=null;this.onChange=onChange;this.user=null;this.profile=null;this.ready=false;this.loading=false;this.error=null;this.version=0;this.proReady=false;this.expenses=[];this.audit=[];this.cashClosings=[];this.clockReady=false;this.clockStatus=null;this.clockSessions=[];this.weeklyClockTop=[];this.weeklyClockReady=false;
+    this.initialized=false;this.lastSynced=null;this.onChange=onChange;this.user=null;this.profile=null;this.ready=false;this.loading=false;this.error=null;this.version=0;this.proReady=false;this.expenses=[];this.audit=[];this.cashClosings=[];this.clockReady=false;this.clockStatus=null;this.clockSessions=[];this.weeklyClockTop=[];this.weeklyClockHistory=[];this.weeklyClockReady=false;
     this.client.auth.onAuthStateChange((event,session)=>{
       if(event==='INITIAL_SESSION'||event==='SIGNED_IN'||event==='SIGNED_OUT'||event==='TOKEN_REFRESHED')setTimeout(()=>this.restore(session),0);
     });
@@ -250,7 +250,7 @@ class BennysCloud {
   async rpc(name,args={}){const {data,error}=await this.client.rpc(name,args);if(error)throw error;return Array.isArray(data)&&data.length===1?data[0]:data;}
   async restore(session){
     const user=session?.user||null;this.initialized=true;
-    if(this.user?.id!==user?.id){this.version++;this.profile=null;this.ready=false;this.expenses=[];this.audit=[];this.cashClosings=[];this.clockReady=false;this.clockStatus=null;this.clockSessions=[];this.weeklyClockTop=[];this.weeklyClockReady=false;this.team=[];this.proReady=false;}
+    if(this.user?.id!==user?.id){this.version++;this.profile=null;this.ready=false;this.expenses=[];this.audit=[];this.cashClosings=[];this.clockReady=false;this.clockStatus=null;this.clockSessions=[];this.weeklyClockTop=[];this.weeklyClockHistory=[];this.weeklyClockReady=false;this.team=[];this.proReady=false;}
     this.user=user;
     if(!user){this.error=null;this.loading=false;this.onChange({kind:'signedout'});return;}
     await this.load();
@@ -290,7 +290,14 @@ class BennysCloud {
       }catch(error){
         if(error.code!=='PGRST202'&&!/Could not find the function/i.test(error.message||''))throw error;
       }
-      return {clockReady:true,clockStatus:clockStatus||null,clockSessions,weeklyClockTop,weeklyClockReady};
+      let weeklyClockHistory=[];
+      try{
+        const history=await this.rpc('bennys_clock_weekly_history');
+        weeklyClockHistory=Array.isArray(history)?history:history?[history]:[];
+      }catch(error){
+        if(error.code!=='PGRST202'&&!/Could not find the function/i.test(error.message||''))throw error;
+      }
+      return {clockReady:true,clockStatus:clockStatus||null,clockSessions,weeklyClockTop,weeklyClockHistory,weeklyClockReady};
     }catch(error){
       if(['PGRST202','PGRST205'].includes(error.code)||/Could not find the function|relation .* does not exist/i.test(error.message||''))return {clockReady:false,clockStatus:null,clockSessions:[]};
       throw error;
@@ -724,10 +731,14 @@ class ClockPanel{
     const own=session?`<section class="clock-current clock-hero panel"><div class="clock-current-head"><div><span class="clock-status-dot ${paused?'paused':active?'active':''}"></span><span class="eyebrow">${paused?'JORNADA EN PAUSA':active?'JORNADA ACTIVA':'ÚLTIMO FICHAJE'}</span><h2>${esc(this.cloud.profile?.display_name||'Mi jornada')}</h2><p>${paused?'Tu tiempo está detenido hasta que reanudes.':active?'Tu jornada está en marcha.':'Tu último turno quedó guardado.'}</p></div><div class="clock-timer-wrap"><small>TIEMPO TRABAJADO</small><strong class="clock-timer" id="clock-timer">${duration(seconds)}</strong></div></div><div class="clock-meta"><span>Entrada<strong>${dateTime(session.started_at)}</strong></span><span>${paused?'Pausado desde':'Última actividad'}<strong>${dateTime(paused?session.paused_at:session.last_activity_at)}</strong></span>${session.ended_at?`<span>Salida<strong>${dateTime(session.ended_at)}</strong></span>`:''}</div>${paused?`<div class="clock-idle-alert" role="alert"><strong>${icon('alert')} Aviso de inactividad</strong><p>No se registraron ventas ni compras durante una hora. Si sigues esperando clientes, vuelve a ficharte. Si olvidaste desficharte, finaliza tu jornada.</p><div class="clock-actions"><button class="button primary" id="clock-resume">Volver a ficharme</button><button class="button secondary" id="clock-finish">Desficharme ahora</button></div></div>`:active?`<div class="clock-active-note">El contador se actualiza con las ventas y compras registradas. Si pasa una hora sin actividad, se pausará automáticamente.</div><div class="clock-actions"><button class="button secondary" id="clock-finish">Desficharme</button></div>`:`<div class="clock-active-note">Tu último turno está guardado. Puedes iniciar una nueva jornada cuando vuelvas a trabajar.</div><div class="clock-actions"><button class="button primary" id="clock-start">Ficharme</button></div>`}</section>`:`<section class="clock-current clock-hero panel"><div class="clock-current-head"><div><span class="clock-status-dot"></span><span class="eyebrow">SIN FICHAJE ACTIVO</span><h2>¿Vas a comenzar tu jornada?</h2><p>Registra tu entrada antes de empezar para llevar el control de tus horas.</p></div><span class="clock-icon">${icon('clock')}</span></div><div class="clock-actions"><button class="button primary" id="clock-start">Ficharme</button></div></section>`;
     const ranking=this.cloud.weeklyClockTop||[];
     const rankingMarkup=this.cloud.weeklyClockReady?(ranking.length?`<div class="clock-podium">${ranking.map((row,index)=>`<article class="clock-podium-row rank-${index+1}"><span class="clock-rank-number">${index+1}</span><span class="clock-rank-medal">${index===0?'★':index===1?'◆':'✦'}</span><div><strong>${esc(row.employee_name||'Trabajador')}</strong><small>${index===0?'Líder de la semana':index===1?'Segundo lugar':'Tercer lugar'}</small></div><b>${duration(Number(row.worked_seconds)||0)}</b></article>`).join('')}</div>`:'<div class="cash-empty">Aún no hay horas fichadas esta semana. ¡El ranking comienza cuando el equipo fiche!</div>'):'<div class="cash-empty">El ranking semanal estará disponible al instalar la actualización pendiente.</div>';
-    const rankingPanel=`<section class="panel clock-ranking"><div class="panel-head"><div><span class="eyebrow">RECONOCIMIENTO DEL EQUIPO</span><h2>Los más fichados de la semana</h2><p>Top 3 por tiempo trabajado · se reinicia cada lunes y conserva el historial de jornadas.</p></div><span class="clock-ranking-badge">${icon('trophy')} TOP 3</span></div>${rankingMarkup}</section>`;
+    const rankingPanel=`<section class="panel clock-ranking"><div class="panel-head"><div><span class="eyebrow">RECONOCIMIENTO DEL EQUIPO</span><h2>Los más fichados de la semana</h2><p>Se actualiza mientras el equipo ficha. El domingo se guarda el resultado y cada lunes comienza una nueva semana.</p></div><span class="clock-ranking-badge">${icon('trophy')} TOP 3</span></div>${rankingMarkup}</section>`;
+    const savedWeeks=this.cloud.weeklyClockHistory||[];
+    const weekKeys=[...new Set(savedWeeks.map(row=>row.week_start))];
+    const rankingHistory=weekKeys.length?`<section class="panel clock-history"><div class="panel-head"><div><h2>Resultados de semanas anteriores</h2><p>Los tres primeros lugares quedan guardados al comenzar una nueva semana.</p></div></div>${weekKeys.slice(0,8).map(week=>{const rows=savedWeeks.filter(row=>row.week_start===week);return `<div class="clock-week-archive"><h3>Semana del ${dateTime(week+'T12:00:00-05:00')}</h3><div class="clock-podium">${rows.map(row=>`<article class="clock-podium-row rank-${row.position}"><span class="clock-rank-number">${row.position}</span><span class="clock-rank-medal">${row.position===1?'★':row.position===2?'◆':'✦'}</span><div><strong>${esc(row.employee_name||'Trabajador')}</strong><small>${row.position===1?'Primer lugar':row.position===2?'Segundo lugar':'Tercer lugar'}</small></div><b>${duration(Number(row.worked_seconds)||0)}</b></article>`).join('')}</div></div>`}).join('')}</section>`:'';
+    const rankingArchive=rankingHistory;
     const sessions=[...(this.cloud.clockSessions||[])].sort((a,b)=>Date.parse(b.started_at)-Date.parse(a.started_at));
     const history=sessions.length?`<section class="panel clock-history"><div class="panel-head"><div><h2>${this.cloud.isAdmin?'Registro de fichajes del equipo':'Mi historial de fichajes'}</h2><p>Entradas, pausas, salidas y tiempo trabajado</p></div><span>${sessions.length} registros</span></div><div class="table-panel"><table><thead><tr>${this.cloud.isAdmin?'<th>Personal</th>':''}<th>Entrada</th><th>Última actividad</th><th>Salida / pausa</th><th>Tiempo trabajado</th><th>Estado</th></tr></thead><tbody>${sessions.slice(0,100).map(row=>`<tr>${this.cloud.isAdmin?`<td><strong>${esc(this.cloud.team.find(p=>p.id===row.employee_id)?.display_name||'Personal')}</strong></td>`:''}<td>${dateTime(row.started_at)}</td><td>${dateTime(row.last_activity_at)}</td><td>${dateTime(row.ended_at||row.paused_at)}</td><td><strong>${duration(this.worked(row))}</strong></td><td><span class="status-pill ${row.status==='paused'?'cancelled':''}">${statusLabel(row.status)}</span></td></tr>`).join('')}</tbody></table></div></section>`:'<div class="cash-empty">Todavía no hay jornadas guardadas.</div>';
-    root.innerHTML=own+rankingPanel+history;
+    root.innerHTML=own+rankingPanel+rankingArchive+history;
     this.el('clock-start')?.addEventListener('click',()=>this.action('start'));
     this.el('clock-resume')?.addEventListener('click',()=>this.action('resume'));
     this.el('clock-finish')?.addEventListener('click',()=>this.action('finish'));
