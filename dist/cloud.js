@@ -9,7 +9,7 @@ export class BennysCloud {
   constructor(onChange){
     if(!globalThis.supabase?.createClient)throw Error('No se pudo cargar el cliente de Supabase.');
     this.client=globalThis.supabase.createClient(CLOUD_CONFIG.url,CLOUD_CONFIG.publishableKey,{auth:{storageKey:'bennys-auth-v1',persistSession:true,autoRefreshToken:true,detectSessionInUrl:true}});
-    this.initialized=false;this.lastSynced=null;this.onChange=onChange;this.user=null;this.profile=null;this.ready=false;this.loading=false;this.error=null;this.version=0;this.proReady=false;this.expenses=[];this.audit=[];this.cashClosings=[];this.clockReady=false;this.clockStatus=null;this.clockSessions=[];this.weeklyClockTop=[];this.weeklyClockReady=false;
+    this.initialized=false;this.lastSynced=null;this.onChange=onChange;this.user=null;this.profile=null;this.ready=false;this.loading=false;this.error=null;this.version=0;this.proReady=false;this.expenses=[];this.audit=[];this.cashClosings=[];this.clockReady=false;this.clockStatus=null;this.clockSessions=[];this.weeklyClockTop=[];this.weeklyClockHistory=[];this.weeklyClockReady=false;
     this.client.auth.onAuthStateChange((event,session)=>{
       if(event==='INITIAL_SESSION'||event==='SIGNED_IN'||event==='SIGNED_OUT'||event==='TOKEN_REFRESHED')setTimeout(()=>this.restore(session),0);
     });
@@ -30,7 +30,7 @@ export class BennysCloud {
   async rpc(name,args={}){const {data,error}=await this.client.rpc(name,args);if(error)throw error;return Array.isArray(data)&&data.length===1?data[0]:data;}
   async restore(session){
     const user=session?.user||null;this.initialized=true;
-    if(this.user?.id!==user?.id){this.version++;this.profile=null;this.ready=false;this.expenses=[];this.audit=[];this.cashClosings=[];this.clockReady=false;this.clockStatus=null;this.clockSessions=[];this.weeklyClockTop=[];this.weeklyClockReady=false;this.team=[];this.proReady=false;}
+    if(this.user?.id!==user?.id){this.version++;this.profile=null;this.ready=false;this.expenses=[];this.audit=[];this.cashClosings=[];this.clockReady=false;this.clockStatus=null;this.clockSessions=[];this.weeklyClockTop=[];this.weeklyClockHistory=[];this.weeklyClockReady=false;this.team=[];this.proReady=false;}
     this.user=user;
     if(!user){this.error=null;this.loading=false;this.onChange({kind:'signedout'});return;}
     await this.load();
@@ -70,7 +70,14 @@ export class BennysCloud {
       }catch(error){
         if(error.code!=='PGRST202'&&!/Could not find the function/i.test(error.message||''))throw error;
       }
-      return {clockReady:true,clockStatus:clockStatus||null,clockSessions,weeklyClockTop,weeklyClockReady};
+      let weeklyClockHistory=[];
+      try{
+        const history=await this.rpc('bennys_clock_weekly_history');
+        weeklyClockHistory=Array.isArray(history)?history:history?[history]:[];
+      }catch(error){
+        if(error.code!=='PGRST202'&&!/Could not find the function/i.test(error.message||''))throw error;
+      }
+      return {clockReady:true,clockStatus:clockStatus||null,clockSessions,weeklyClockTop,weeklyClockHistory,weeklyClockReady};
     }catch(error){
       if(['PGRST202','PGRST205'].includes(error.code)||/Could not find the function|relation .* does not exist/i.test(error.message||''))return {clockReady:false,clockStatus:null,clockSessions:[]};
       throw error;
