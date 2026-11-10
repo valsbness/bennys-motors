@@ -15,7 +15,7 @@ export class CashPanel{
   get closings(){return this.cloud?.cashClosings||[];}
   actor(id){return this.cloud?.team?.find(p=>p.id===id)?.display_name||'Administración';}
   events(){return [
-    ...this.orders.map(o=>({kind:'sale',date:o.date,actor:this.actor(o.employeeId),client:o.client,label:o.folio||'Venta',amount:Number(o.totals?.total)||0,status:o.status,detail:(o.items||[]).map(i=>i.name+' × '+i.qty).join(', ')})),
+    ...this.orders.map(o=>({kind:'sale',date:o.date,actor:o.mechanic||this.actor(o.employeeId),client:o.client,label:o.folio||'Venta',amount:Number(o.totals?.total)||0,status:o.status,detail:(o.items||[]).map(i=>i.name+' × '+i.qty).join(', ')})),
     ...this.expenses.map(e=>({kind:'purchase',date:e.created_at,actor:this.actor(e.created_by),label:e.description,amount:Number(e.amount)||0,status:e.status,detail:e.category})),
     ...this.closings.map(c=>({kind:'closing',date:c.closed_at,actor:this.actor(c.closed_by),label:'Cierre de caja',amount:Number(c.cash_amount)||0,status:'closed',detail:c.notes||'Cierre administrativo'}))
   ].sort((a,b)=>Date.parse(b.date)-Date.parse(a.date));}
