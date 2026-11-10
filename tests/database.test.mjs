@@ -122,5 +122,16 @@ test('Supabase: instalación, permisos, cálculos y aislamiento de empleados',as
   const weeklyTop=(await db.query('select * from bennys_clock_weekly_top()')).rows;
   assert.equal(weeklyTop[0].employee_id,employee);
   assert.ok(Number(weeklyTop[0].worked_seconds)>0);
+
+  // Los cierres antiguos deben reconstruir sus métricas desde las órdenes reales.
+  await db.exec('reset role;');
+  await db.query("update bennys_cash_closings set snapshot='{}'::jsonb, period_start=null");
+  await execSqlStatements(db,readFileSync(new URL('../supabase/corregir-historial-caja.sql',import.meta.url),'utf8'),'corregir-historial-caja.sql');
+  const repaired=(await db.query('select snapshot,period_start from bennys_cash_closings where id=$1',['99999999-9999-4999-8999-999999999999'])).rows[0];
+  assert.equal(repaired.snapshot.orders.length,3);
+  assert.equal(repaired.snapshot.employee_summary.find(p=>p.employee_id===employee).services,1);
+  assert.equal(Number(repaired.snapshot.team_summary.sales),79650);
+  assert.equal(Number(repaired.snapshot.employee_summary.find(p=>p.employee_id===employee).sales),79650);
+  assert.ok(repaired.snapshot.clock_sessions.length>=1);
   await db.close();
 });
