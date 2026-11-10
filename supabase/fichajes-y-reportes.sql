@@ -122,14 +122,29 @@ grant execute on function public.bennys_clock_start(),public.bennys_clock_status
 
 -- Calcula solo los segundos trabajados dentro de las fechas del cierre.
 create or replace function public.bennys_clock_period_seconds(p_segments jsonb,p_status text,p_segment_start timestamptz,p_last_activity timestamptz,p_start timestamptz,p_end timestamptz)
-returns integer language sql immutable set search_path=public,pg_temp as $
-  select coalesce((
-    select sum(greatest(0,extract(epoch from (least((seg->>'ended_at')::timestamptz,p_end)-greatest((seg->>'started_at')::timestamptz,coalesce(p_start,(seg->>'started_at')::timestamptz))))::integer)
-    from jsonb_array_elements(coalesce(p_segments,'[]'::jsonb)) seg
-  ),0)+case when p_status='active' and p_segment_start is not null
-    then greatest(0,extract(epoch from (least(p_end,p_last_activity+interval '1 hour')-greatest(p_segment_start,coalesce(p_start,p_segment_start))))::integer)
-    else 0 end
-$;
+returns integer language plpgsql immutable set search_path=public,pg_temp as $$
+declare
+  v_total integer:=0;
+  v_segment jsonb;
+  v_segment_start timestamptz;
+  v_segment_end timestamptz;
+begin
+  for v_segment in select value from jsonb_array_elements(coalesce(p_segments,'[]'::jsonb)) loop
+    v_segment_start:=greatest((v_segment->>'started_at')::timestamptz,coalesce(p_start,(v_segment->>'started_at')::timestamptz));
+    v_segment_end:=least((v_segment->>'ended_at')::timestamptz,p_end);
+    if v_segment_end>v_segment_start then
+      v_total:=v_total+extract(epoch from (v_segment_end-v_segment_start))::integer;
+    end if;
+  end loop;
+  if p_status='active' and p_segment_start is not null then
+    v_segment_start:=greatest(p_segment_start,coalesce(p_start,p_segment_start));
+    v_segment_end:=least(p_end,p_last_activity+interval '1 hour');
+    if v_segment_end>v_segment_start then
+      v_total:=v_total+extract(epoch from (v_segment_end-v_segment_start))::integer;
+    end if;
+  end if;
+  return v_total;
+end $$;
 revoke all on function public.bennys_clock_period_seconds(jsonb,text,timestamptz,timestamptz,timestamptz,timestamptz) from public,anon,authenticated;
 
 -- Cada cierre conserva un informe congelado: totales del equipo, desglose por mecánico y fichajes.
