@@ -122,6 +122,12 @@ test('Supabase: instalación, permisos, cálculos y aislamiento de empleados',as
   const weeklyTop=(await db.query('select * from bennys_clock_weekly_top()')).rows;
   assert.equal(weeklyTop[0].employee_id,employee);
   assert.ok(Number(weeklyTop[0].worked_seconds)>0);
+  await db.exec('reset role;');
+  await execSqlStatements(db,readFileSync(new URL('../supabase/corregir-fichaje-ranking.sql',import.meta.url),'utf8'),'corregir-fichaje-ranking.sql');
+  await as(employee);
+  const repairedWeekly=(await db.query('select * from bennys_clock_weekly_top()')).rows;
+  assert.equal(repairedWeekly[0].employee_id,employee);
+  assert.ok(Number(repairedWeekly[0].worked_seconds)>0);
 
   // Los cierres antiguos deben reconstruir sus métricas desde las órdenes reales.
   await db.exec('reset role;');
