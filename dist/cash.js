@@ -21,14 +21,14 @@ export class CashPanel{
     const rows=new Map();
     for(const p of this.team.filter(p=>p.role==='employee'))rows.set(p.id,{id:p.id,name:p.display_name||'Mecánico',count:0,total:0,cost:0,gross:0,commission:0,net:0});
     for(const o of this.monthOrders().filter(o=>o.status==='active')){
-      const id=o.employeeId||o.mechanic||'unassigned';
-      if(!rows.has(id))rows.set(id,{id,name:this.team.find(p=>p.id===id)?.display_name||o.mechanic||'Sin asignar',count:0,total:0,cost:0,gross:0,commission:0,net:0});
+      const profile=this.team.find(p=>p.id===o.employeeId||p.display_name===o.mechanic),id=profile?.id||o.employeeId||o.mechanic||'unassigned';
+      if(!rows.has(id))rows.set(id,{id,name:profile?.display_name||o.mechanic||'Sin asignar',count:0,total:0,cost:0,gross:0,commission:0,net:0});
       const row=rows.get(id),t=o.totals||{};row.count++;for(const key of ['total','cost','gross','commission','net'])row[key]=round(row[key]+(Number(t[key])||0));
     }
     return [...rows.values()].sort((a,b)=>b.total-a.total||a.name.localeCompare(b.name,'es'));
   }
   events(){return [
-    ...this.orders.map(o=>({kind:'sale',date:o.date,actor:o.mechanic||this.actor(o.employeeId),actorId:o.employeeId||'',client:o.client,label:o.folio||'Venta',amount:Number(o.totals?.total)||0,status:o.status,detail:['Cliente: '+(o.client||'Sin nombre'),(o.items||[]).map(i=>i.name+' × '+i.qty).join(', ')].filter(Boolean).join(' · ')})),
+    ...this.orders.map(o=>({kind:'sale',date:o.date,actor:o.mechanic||this.actor(o.employeeId),actorId:o.employeeId||this.team.find(p=>p.display_name===o.mechanic)?.id||'',client:o.client,label:o.folio||'Venta',amount:Number(o.totals?.total)||0,status:o.status,detail:['Cliente: '+(o.client||'Sin nombre'),(o.items||[]).map(i=>i.name+' × '+i.qty).join(', ')].filter(Boolean).join(' · ')})),
     ...this.expenses.map(e=>({kind:'purchase',date:e.created_at,actor:this.actor(e.created_by),actorId:e.created_by,label:e.description,amount:Number(e.amount)||0,status:e.status,detail:e.category})),
     ...this.closings.map(c=>({kind:'closing',date:c.closed_at,actor:this.actor(c.closed_by),actorId:c.closed_by,label:'Cierre de caja',amount:Number(c.cash_amount)||0,status:'closed',detail:c.notes||'Cierre administrativo'}))
   ].sort((a,b)=>Date.parse(b.date)-Date.parse(a.date));}
