@@ -93,5 +93,5 @@ test('El informe incluye mecánicos sin ventas y reconoce órdenes históricas p
 
 test('El bundle compilado no duplica la declaración global round',()=>{
   const source=readFileSync(new URL('../dist/bundle.js',import.meta.url),'utf8');
-  assert.equal((source.match(/\\b(?:const|let|var|function)\\s+round\\b/g)||[]).length,1);
+  assert.equal((source.match(/\b(?:const|let|var|function)\s+round\b/g)||[]).length,1);
 });
