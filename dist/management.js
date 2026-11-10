@@ -9,7 +9,7 @@ const dateLabel=value=>new Intl.DateTimeFormat('es-MX',{day:'2-digit',month:'sho
 const hydrate=root=>root.querySelectorAll('[data-icon]').forEach(el=>{el.innerHTML=icon(el.dataset.icon);});
 const since=value=>{const seconds=Math.round((Date.parse(value)-Date.now())/1000),abs=Math.abs(seconds),rtf=new Intl.RelativeTimeFormat('es',{numeric:'auto'});if(abs<45)return 'justo ahora';if(abs<3600)return rtf.format(Math.round(seconds/60),'minute');if(abs<86400)return rtf.format(Math.round(seconds/3600),'hour');return rtf.format(Math.round(seconds/86400),'day');};
 const initials=name=>String(name||'?').trim().split(/\s+/).slice(0,2).map(p=>p[0]||'').join('').toUpperCase()||'?';
-const ACTIONS={venta_registrada:'Venta registrada',venta_anulada:'Venta anulada',gasto_registrado:'Gasto registrado',gasto_anulado:'Gasto anulado',empleado_actualizado:'Empleado actualizado',cuenta_solicitada:'Solicitud de acceso',tarifa_actualizada:'Tarifa actualizada'};
+const ACTIONS={venta_registrada:'Venta registrada',venta_anulada:'Venta anulada',gasto_registrado:'Gasto registrado',gasto_anulado:'Gasto anulado',empleado_actualizado:'Empleado actualizado',cuenta_solicitada:'Solicitud de acceso',tarifa_actualizada:'Tarifa actualizada',cierre_caja:'Cierre de caja realizado'};
 
 export class ManagementPanel{
   constructor(options){Object.assign(this,options);}
