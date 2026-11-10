@@ -4,6 +4,7 @@ import {icon,esc,labelTables} from './icons.js';
 import {BennysCloud} from './cloud.js';
 import {inPeriod,salesMetrics} from './operations.js';
 import {ManagementPanel} from './management.js';
+import {CashPanel} from './cash.js';
 import {HomeLayout} from './layout.js';
 import {initAtmosphere} from './atmosphere.js';
 import {initBrand,setAccessVisible,setAccessCalm} from './brand.js';
@@ -19,7 +20,7 @@ const validDraft=d=>d&&Array.isArray(d.items)&&d.items.every(validItem)&&typeof 
 function validState(s){return s?.version===1&&Array.isArray(s.catalog)&&(s.catalog.length===18||s.catalog.length===CATALOG.length)&&CATALOG.every(original=>s.catalog.some(i=>i.id===original.id&&amount(i.price)&&amount(i.cost)))&&Array.isArray(s.orders)&&Number.isSafeInteger(s.next)&&s.next>0&&typeof s.settings?.mechanic==='string'&&percent(s.settings.commission)&&validDraft(s.draft)&&s.orders.every(o=>validDraft(o)&&typeof o.id==='string'&&typeof o.folio==='string'&&Number.isFinite(Date.parse(o.date))&&['subtotal','cost','discount','total','gross','commission','net','units'].every(k=>Number.isFinite(o.totals?.[k]))&&['active','cancelled'].includes(o.status));}
 function sanitizeState(s){const clean={...s,catalog:CATALOG.map(original=>{const saved=s.catalog.find(i=>i.id===original.id);return {...original,...(saved?{price:saved.price,cost:saved.cost}:{})};}),draft:{...s.draft},orders:s.orders.map(o=>({...o}))};for(const row of [clean.draft,...clean.orders]){delete row.vehicle;delete row.plate;delete row.playerId;}return clean;}
 function readState(key){try{const parsed=JSON.parse(localStorage.getItem(key));return validState(parsed)?sanitizeState(parsed):defaultState();}catch{return defaultState();}}
-let state=readState(GUEST_KEY),activeKey=GUEST_KEY,cloud=null,category='all',currentView='dashboard',toastTimer,accountUser=null,management=null,gatePhase='',connectionFailed=false,pendingPresentedUser=null;
+let state=readState(GUEST_KEY),activeKey=GUEST_KEY,cloud=null,category='all',currentView='dashboard',toastTimer,accountUser=null,management=null,gatePhase='',connectionFailed=false,pendingPresentedUser=null,cashPanel=null;
 function toast(message){$('toast').textContent=message;$('toast').classList.add('visible');clearTimeout(toastTimer);toastTimer=setTimeout(()=>$('toast').classList.remove('visible'),4500);}
 function errorText(error){
   const message=error?.message||String(error);
@@ -77,9 +78,9 @@ function selectClient(key){
 function add(id){const service=state.catalog.find(i=>i.id===id);if(!service)return;const old=state.draft.items.find(i=>i.id===id),result=addToOrder(state.draft.items,service);state.draft.items=result.items;persist();refresh();if(result.replaced.length)toast(`${service.name} reemplazó ${result.replaced.map(i=>i.name).join(', ')}.`);else if(service.exclusive&&old)toast('Esta configuración ya está en la orden.');}
 function setView(view){
   if(view!=='dashboard')homeLayout.cancel();
-  if(['team','finance','audit'].includes(view)&&!cloud?.isAdmin)view='dashboard';
+  if(['team','finance','audit','cash'].includes(view)&&!cloud?.isAdmin)view='dashboard';
   currentView=view;document.querySelectorAll('.view').forEach(el=>el.classList.toggle('active',el.id==='view-'+view));document.querySelectorAll('[data-view]').forEach(el=>{const on=el.dataset.view===view;el.classList.toggle('active',on);if(on)el.setAttribute('aria-current','page');else el.removeAttribute('aria-current');});enterView(view);
-  $('breadcrumb-current').textContent=({dashboard:'Inicio',calculator:'Nueva venta',orders:cloud?.isAdmin?'Ventas del taller':'Mis ventas',catalog:'Tarifario',clients:'Clientes frecuentes',summary:'Comisiones',finance:'Gastos y resultado',team:'Equipo',audit:'Actividad'})[view];$('mobile-total').classList.toggle('no-mobile-total',view!=='calculator');
+  $('breadcrumb-current').textContent=({dashboard:'Inicio',calculator:'Nueva venta',orders:cloud?.isAdmin?'Ventas del taller':'Mis ventas',catalog:'Tarifario',clients:'Clientes frecuentes',summary:'Comisiones',finance:'Gastos y resultado',team:'Equipo',audit:'Actividad',cash:'Cierres de caja'})[view];$('mobile-total').classList.toggle('no-mobile-total',view!=='calculator');
   if(view==='clients')renderClients();if(view==='orders')renderOrders();if(view==='catalog')renderPrices();if(view==='team')renderTeam();management?.render(view);history.replaceState(null,'','#'+view);closeMenu();window.scrollTo({top:0,behavior:'instant'});
 }
 // Entrada breve: solo mientras se abre la vista. Las actualizaciones posteriores de datos no vuelven a animar el contenido.
@@ -177,25 +178,25 @@ function renderCloudStatus(){
   const status=cloud?.loading?'Sincronizando…':cloud?.error?'Conexión pendiente':cloud?.isActive?'Sincronizado con el taller':cloud?.user?'Cuenta pendiente de activación':'Acceso del personal';
   $('cloud-status-text').textContent=status;$('cloud-indicator').classList.toggle('offline',!cloud?.isActive);
   $('account-label').textContent=cloud?.user?(cloud.profile?.display_name||'Mi cuenta'):'Acceder';
-  for(const id of ['team-nav','finance-nav','audit-nav','admin-nav-label'])$(id).hidden=!cloud?.isAdmin;$('sync-button').hidden=!cloud?.user;$('signout-button').hidden=!cloud?.user;$('layout-edit').hidden=!cloud?.isActive;
+  for(const id of ['team-nav','finance-nav','audit-nav','cash-nav','admin-nav-label'])$(id).hidden=!cloud?.isAdmin;$('sync-button').hidden=!cloud?.user;$('signout-button').hidden=!cloud?.user;$('layout-edit').hidden=!cloud?.isActive;
   $('account-role').textContent=cloud?.isActive?(cloud.isAdmin?'Administrador':'Mecánico'):'Perfil del mecánico';
   $('ticket-storage-text').textContent='Ventas en Supabase · Borrador local';$('sync-button').classList.toggle('syncing',Boolean(cloud?.loading));$('sync-button').setAttribute('aria-busy',String(Boolean(cloud?.loading)));$('home-workspace').textContent=cloud?.isAdmin?'Taller · Administración':'Mi actividad · Mecánico';$('last-sync').textContent=cloud?.lastSynced?'Actualizado a las '+cloud.lastSynced.toLocaleTimeString('es-MX',{hour:'2-digit',minute:'2-digit'}):'Sincronizando registros…';renderAccess();
 }
 function cloudChanged(event){
   if(event.kind==='data'){
-    pendingPresentedUser=null;if(!cloud.isAdmin&&['finance','team','audit'].includes(currentView))setView('dashboard');
+    pendingPresentedUser=null;if(!cloud.isAdmin&&['finance','team','audit','cash'].includes(currentView))setView('dashboard');
     if(accountUser!==event.userId){const guestDraft={...state.draft,items:state.draft.items.map(i=>({...i}))};accountUser=event.userId;activeKey='bennys-motors-v2:'+event.userId;state=readState(activeKey);if(!state.draft.items.length&&!state.draft.client)state.draft=guestDraft;}
     state.catalog=CATALOG.map(original=>{const service=event.services.find(i=>i.id===original.id);return {...original,price:Number(service.price),cost:Number(service.cost)};});
     state.orders=event.orders;state.settings={mechanic:event.profile.display_name,commission:Number(event.profile.commission)};
     if(!cloud.isAdmin||!state.draft.items.length)state.draft.commission=Number(event.profile.commission);
     persist();renderDraftFields();refresh();
-    if(currentView==='orders')renderOrders();if(currentView==='catalog')renderPrices();if(currentView==='summary')renderSummary();if(currentView==='team')renderTeam();
+    if(currentView==='orders')renderOrders();if(currentView==='catalog')renderPrices();if(currentView==='summary')renderSummary();if(currentView==='team')renderTeam();if(currentView==='cash')cashPanel?.render();
     if($('auth-form')||$('claim-form')||$('pending-account')){$('modal').close();toast('Ya estás dentro del taller.');}
   }else if(event.kind==='signedout'){homeLayout.cancel();
     pendingPresentedUser=null;
-    if(accountUser){localStorage.removeItem(activeKey);accountUser=null;activeKey=GUEST_KEY;state=readState(GUEST_KEY);renderDraftFields();refresh();if(['team','finance','audit'].includes(currentView))setView('dashboard');if(currentView==='orders')renderOrders();if(currentView==='summary')renderSummary();if(currentView==='catalog')renderPrices();}
+    if(accountUser){localStorage.removeItem(activeKey);accountUser=null;activeKey=GUEST_KEY;state=readState(GUEST_KEY);renderDraftFields();refresh();if(['team','finance','audit','cash'].includes(currentView))setView('dashboard');if(currentView==='orders')renderOrders();if(currentView==='summary')renderSummary();if(currentView==='catalog')renderPrices();}
   }else if(event.kind==='pending'){
-    if(accountUser){state.orders=[];state.settings={mechanic:cloud.profile?.display_name||'',commission:0};persist();refresh();if(currentView==='orders')renderOrders();if(currentView==='summary')renderSummary();if(currentView==='catalog')renderPrices();if(['team','finance','audit'].includes(currentView))setView('dashboard');}
+    if(accountUser){state.orders=[];state.settings={mechanic:cloud.profile?.display_name||'',commission:0};persist();refresh();if(currentView==='orders')renderOrders();if(currentView==='summary')renderSummary();if(currentView==='catalog')renderPrices();if(['team','finance','audit','cash'].includes(currentView))setView('dashboard');}
     if(!cloud.error&&!$('modal').open&&pendingPresentedUser!==cloud.user.id){pendingPresentedUser=cloud.user.id;openAccount();}
   }else if(event.kind==='error'){
     if($('auth-form')){authMessage(errorText(event.error),'error');setAuthBusy(false);}
@@ -246,7 +247,7 @@ function editEmployee(id){
 }
 
 const homeLayout=new HomeLayout({getCloud:()=>cloud,toast,rerender:()=>management.dashboard()});
-management=new ManagementPanel({layout:homeLayout,getState:()=>state,getCloud:()=>cloud,modal,toast,errorText,confirmAction,exportRows:(name,rows)=>{download(name,'\uFEFF'+rows.map(row=>row.map(csvCell).join(';')).join('\r\n'),'text/csv;charset=utf-8');toast('Informe exportado.');}});
+management=new ManagementPanel({layout:homeLayout,getState:()=>state,getCloud:()=>cloud,modal,toast,errorText,confirmAction,exportRows:(name,rows)=>{download(name,'\uFEFF'+rows.map(row=>row.map(csvCell).join(';')).join('\r\n'),'text/csv;charset=utf-8');toast('Informe exportado.');}});cashPanel=new CashPanel({getState:()=>state,getCloud:()=>cloud,modal,toast,errorText});
 for(const id of ['orders-list','price-table','summary-content','finance-content','team-list','clients-list']){const target=$(id);if(target)new MutationObserver(()=>labelTables(target)).observe(target,{childList:true});}
 hydrateIcons();homeLayout.init();$('top-date').textContent=new Intl.DateTimeFormat('es-MX',{day:'numeric',month:'long',year:'numeric'}).format(new Date());
 $('categories').innerHTML=CATEGORIES.map(c=>`<button class="category-button ${c.id==='all'?'active':''}" data-category="${c.id}" aria-pressed="${c.id==='all'}">${icon(c.icon)}${esc(c.label)}</button>`).join('');
@@ -277,5 +278,5 @@ $('price-table').onchange=async e=>{const input=e.target.closest('[data-price]')
 $('restore-prices').onclick=()=>{if(!cloud?.isAdmin)return;confirmAction('Restaurar el tarifario original','Se recuperarán los precios originales de los 23 servicios del taller. Las órdenes registradas conservarán sus importes.',async()=>{let saved=0;try{for(const service of CATALOG){await cloud.saveService(service);saved++;}await cloud.load();renderPrices();toast('Tarifario original restaurado.');}catch(error){await cloud.load();renderPrices();throw Error(`${saved} tarifas restauradas. ${errorText(error)}`);}},'Restaurar tarifas');};
 $('mobile-ticket').onclick=()=>document.querySelector('.order-panel').scrollIntoView({behavior:matchMedia('(prefers-reduced-motion:reduce)').matches?'instant':'smooth',block:'start'});
 document.addEventListener('keydown',e=>{if(cloud?.isActive&&e.key==='/'&&!$('modal').open&&!['INPUT','TEXTAREA','SELECT'].includes(document.activeElement.tagName)){e.preventDefault();setView('calculator');$('service-search').focus();}});
-const hash=location.hash.slice(1);setView(['dashboard','calculator','orders','clients','catalog','summary'].includes(hash)?hash:'dashboard');
+const hash=location.hash.slice(1);setView(['dashboard','calculator','orders','clients','catalog','summary','cash'].includes(hash)?hash:'dashboard');
 try{cloud=new BennysCloud(cloudChanged);renderCloudStatus();}catch(error){connectionFailed=true;renderCloudStatus();authMessage(errorText(error),'error');}
