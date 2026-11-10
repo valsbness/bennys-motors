@@ -139,7 +139,7 @@ begin
   if found then return v_row; end if;
   select max(closed_at) into v_start from public.bennys_cash_closings;
 
-  select jsonb_build_object(
+  v_snapshot:=jsonb_build_object(
     'orders',coalesce((select jsonb_agg(jsonb_build_object('id',o.id,'number',o.number,'created_at',o.created_at,'status',o.status,'employee_id',o.employee_id,'employee_name',p.display_name,'payload',o.payload) order by o.created_at) from public.bennys_orders o left join public.bennys_profiles p on p.id=o.employee_id where (v_start is null or o.created_at>v_start) and o.created_at<=v_end),'[]'::jsonb),
     'purchases',coalesce((select jsonb_agg(jsonb_build_object('id',e.id,'created_at',e.created_at,'status',e.status,'description',e.description,'category',e.category,'amount',e.amount,'created_by',e.created_by,'employee_name',p.display_name) order by e.created_at) from public.bennys_expenses e left join public.bennys_profiles p on p.id=e.created_by where (v_start is null or e.created_at>v_start) and e.created_at<=v_end),'[]'::jsonb),
     'employee_summary',coalesce((
@@ -167,7 +167,7 @@ begin
       from public.bennys_clock_sessions s left join public.bennys_profiles p on p.id=s.employee_id
       where s.started_at<=v_end and coalesce(s.ended_at,v_end)>coalesce(v_start,'-infinity'::timestamptz)
     ),'[]'::jsonb)
-  ) into v_snapshot;
+  );
 
   insert into public.bennys_cash_closings(id,closed_by,cash_amount,notes,period_start,closed_at,snapshot)
   values(p_id,auth.uid(),round(p_cash_amount,2),trim(coalesce(p_notes,'')),v_start,v_end,v_snapshot) returning * into v_row;
