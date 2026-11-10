@@ -4,7 +4,7 @@ const duration=seconds=>{
   const total=Math.max(0,Math.floor(Number(seconds)||0)),hours=Math.floor(total/3600),minutes=Math.floor(total%3600/60),secs=total%60;
   return [hours,minutes,secs].map(v=>String(v).padStart(2,'0')).join(':');
 };
-const dateTime=value=>value?new Intl.DateTimeFormat('es-MX',{dateStyle:'medium',timeStyle:'short'}).format(new Date(value)):'—';
+const dateTime=value=>value?new Intl.DateTimeFormat('es-PA',{dateStyle:'medium',timeStyle:'short',timeZone:'America/Panama'}).format(new Date(value)):'—';
 const statusLabel=value=>value==='active'?'En jornada':value==='paused'?'En pausa':'Finalizado';
 
 export class ClockPanel{
