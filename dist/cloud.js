@@ -9,7 +9,7 @@ export class BennysCloud {
   constructor(onChange){
     if(!globalThis.supabase?.createClient)throw Error('No se pudo cargar el cliente de Supabase.');
     this.client=globalThis.supabase.createClient(CLOUD_CONFIG.url,CLOUD_CONFIG.publishableKey,{auth:{storageKey:'bennys-auth-v1',persistSession:true,autoRefreshToken:true,detectSessionInUrl:true}});
-    this.initialized=false;this.lastSynced=null;this.onChange=onChange;this.user=null;this.profile=null;this.ready=false;this.loading=false;this.error=null;this.version=0;this.proReady=false;this.expenses=[];this.audit=[];this.cashClosings=[];this.clockReady=false;this.clockStatus=null;this.clockSessions=[];this.weeklyClockTop=[];this.weeklyClockHistory=[];this.weeklyClockReady=false;
+    this.initialized=false;this.lastSynced=null;this.onChange=onChange;this.user=null;this.profile=null;this.ready=false;this.loading=false;this.error=null;this.version=0;this.proReady=false;this.expenses=[];this.audit=[];this.cashClosings=[];this.cashPayments=[];this.clockReady=false;this.clockStatus=null;this.clockSessions=[];this.weeklyClockTop=[];this.weeklyClockHistory=[];this.weeklyClockReady=false;
     this.client.auth.onAuthStateChange((event,session)=>{
       if(event==='INITIAL_SESSION'||event==='SIGNED_IN'||event==='SIGNED_OUT'||event==='TOKEN_REFRESHED')setTimeout(()=>this.restore(session),0);
     });
@@ -30,7 +30,7 @@ export class BennysCloud {
   async rpc(name,args={}){const {data,error}=await this.client.rpc(name,args);if(error)throw error;return Array.isArray(data)&&data.length===1?data[0]:data;}
   async restore(session){
     const user=session?.user||null;this.initialized=true;
-    if(this.user?.id!==user?.id){this.version++;this.profile=null;this.ready=false;this.expenses=[];this.audit=[];this.cashClosings=[];this.clockReady=false;this.clockStatus=null;this.clockSessions=[];this.weeklyClockTop=[];this.weeklyClockHistory=[];this.weeklyClockReady=false;this.team=[];this.proReady=false;}
+    if(this.user?.id!==user?.id){this.version++;this.profile=null;this.ready=false;this.expenses=[];this.audit=[];this.cashClosings=[];this.cashPayments=[];this.clockReady=false;this.clockStatus=null;this.clockSessions=[];this.weeklyClockTop=[];this.weeklyClockHistory=[];this.weeklyClockReady=false;this.team=[];this.proReady=false;}
     this.user=user;
     if(!user){this.error=null;this.loading=false;this.onChange({kind:'signedout'});return;}
     await this.load();
@@ -55,8 +55,8 @@ export class BennysCloud {
   }
   async loadPro(profile){
     try{await this.rpc('bennys_pro_version');}catch(error){if(error.code==='PGRST202')return {proReady:false,expenses:[],audit:[],cashClosings:[]};throw error;}
-    const [expenses,audit,cashClosings]=profile.role==='admin'?await Promise.all([this.pages('bennys_expenses','created_at'),this.pages('bennys_audit','id'),this.pages('bennys_cash_closings','closed_at')]):[[],[],[]];
-    return {proReady:true,expenses,audit,cashClosings};
+    const [expenses,audit,cashClosings,cashPayments]=profile.role==='admin'?await Promise.all([this.pages('bennys_expenses','created_at'),this.pages('bennys_audit','id'),this.pages('bennys_cash_closings','closed_at'),this.pages('bennys_cash_closing_payments','paid_at')]):[[],[],[],[]];
+    return {proReady:true,expenses,audit,cashClosings,cashPayments};
   }
   async loadClock(profile){
     try{
@@ -110,5 +110,7 @@ export class BennysCloud {
   async cancelExpense(id){return this.rpc('bennys_cancel_expense',{p_id:id});}
   async closeCash({id,cashAmount,notes=''}){if(!this.isAdmin)throw Error('Solo administración puede cerrar la caja.');return this.rpc('bennys_close_cash',{p_id:id,p_cash_amount:cashAmount,p_notes:notes});}
   async saveService(service){return this.rpc('bennys_update_service',{p_id:service.id,p_cost:service.cost,p_price:service.price});}
-  async saveEmployee(profile){return this.rpc('bennys_manage_employee',{p_id:profile.id,p_name:profile.display_name,p_role:profile.role,p_active:profile.active,p_commission:profile.commission});}
+  async saveEmployee(profile){return this.rpc('bennys_manage_employee',{p_id:profile.id,p_name:profile.display_name,p_role:profile.role,p_active:profile.active,p_commission:profile.commission,p_iban:profile.iban||''});}
+  async updateOwnIban(iban){return this.rpc('bennys_update_own_iban',{p_iban:iban});}
+  async setClosingPayment(closingId,employeeId,paid){if(!this.isAdmin)throw Error('Solo administración puede actualizar los pagos.');return this.rpc('bennys_set_closing_payment',{p_closing_id:closingId,p_employee_id:employeeId,p_paid:paid});}
 }
