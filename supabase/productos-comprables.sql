@@ -5,9 +5,9 @@ begin;
 
 alter table public.bennys_services add column if not exists purchase_enabled boolean not null default false;
 
--- Selección inicial sugerida: V8, V12, packs completos, nitroso y drift.
+-- Selección inicial sugerida: V8, V12, productos de nitroso y drift.
 update public.bennys_services set purchase_enabled=true
-where id in ('v8','v12','full-v8','full-v12','nitro-bottle','nitro-install','drift-kit');
+where id in ('v8','v12','nitro-bottle','nitro-install','drift-kit');
 
 create or replace function public.bennys_set_service_purchase_enabled(p_id text,p_enabled boolean)
 returns public.bennys_services language plpgsql security definer set search_path=public,pg_temp
