@@ -68,7 +68,7 @@ begin
 
   select left('Compra de '||v_units||' unidades: '||
     string_agg((item->>'name')||' × '||(item->>'qty'),', '),240)
-  into v_description from jsonb_array_elements(v_items) item;
+  into v_description from jsonb_array_elements(v_items) as x(item);
 
   insert into public.bennys_expenses(id,created_by,description,category,amount,items)
   values(p_id,auth.uid(),v_description,'Compras',round(v_total,2),v_items)
